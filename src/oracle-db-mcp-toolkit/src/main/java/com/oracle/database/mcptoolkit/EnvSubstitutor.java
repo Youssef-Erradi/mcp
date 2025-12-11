@@ -42,4 +42,35 @@ public class EnvSubstitutor {
     m.appendTail(sb);
     return sb.toString();
   }
+
+  public static char[] substituteEnvVarsInCharArray(char[] input) {
+    if (input == null) return null;
+    StringBuilder output = new StringBuilder(input.length * 2); // Maybe bigger due to expansions
+    for (int i = 0; i < input.length; ) {
+      if (input[i] == '$' && (i + 1) < input.length && input[i + 1] == '{') {
+        int end = i + 2;
+        while (end < input.length && input[end] != '}') {
+          end++;
+        }
+        if (end < input.length) {
+          // Extract variable name
+          String varName = new String(input, i + 2, end - (i + 2));
+          String value = System.getenv(varName);
+          if (value == null) {
+            throw new IllegalStateException("Missing environment variable for: " + varName);
+          }
+          output.append(value);
+          i = end + 1;
+          continue;
+        }
+      }
+      output.append(input[i]);
+      i++;
+    }
+    char[] result = new char[output.length()];
+    output.getChars(0, output.length(), result, 0);
+    // Zero out the input char[] if desired
+    // java.util.Arrays.fill(input, '\0');
+    return result;
+  }
 }
