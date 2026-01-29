@@ -13,6 +13,7 @@ import com.oracle.database.mcptoolkit.web.AuthorizationFilter;
 import com.oracle.database.mcptoolkit.web.RedirectOAuthToOpenIDServlet;
 import com.oracle.database.mcptoolkit.web.WebUtils;
 import com.oracle.database.mcptoolkit.web.WellKnownServlet;
+import io.modelcontextprotocol.server.McpAsyncServer;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
@@ -28,7 +29,8 @@ import org.apache.tomcat.util.net.SSLHostConfig;
 import org.apache.tomcat.util.net.SSLHostConfigCertificate;
 
 import java.io.File;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static com.oracle.database.mcptoolkit.Utils.installExternalExtensionsFromDir;
@@ -52,10 +54,9 @@ public class OracleDatabaseMCPToolkit {
     McpSyncServer server;
 
     switch (LoadedConstants.TRANSPORT_KIND) {
-      case "http" -> {
+      case "http" ->
         server = startHttpServer();
-      }
-      case "stdio" -> {
+      case "stdio" ->
         server = McpServer
           .sync(new StdioServerTransportProvider(new ObjectMapper()))
           .serverInfo("oracle-db-mcp-toolkit", "1.0.0")
@@ -65,7 +66,6 @@ public class OracleDatabaseMCPToolkit {
              .build())
           .immediateExecution(true)
           .build();
-      }
       default -> throw new IllegalArgumentException(
               "Unsupported transport: " + LoadedConstants.TRANSPORT_KIND + " (expected 'stdio' or 'http')");
     }
@@ -85,19 +85,28 @@ public class OracleDatabaseMCPToolkit {
               HttpServletStreamableServerTransportProvider.builder()
                       .objectMapper(new ObjectMapper())
                       .mcpEndpoint("/mcp")
+                      .keepAliveInterval(Duration.ofSeconds(60))
                       .build();
 
       McpSyncServer server = McpServer
         .sync(transport)
         .serverInfo("oracle-db-mcp-toolkit", "1.0.0")
         .capabilities(McpSchema.ServerCapabilities.builder()
-           .tools(true)
-           .logging()
-           .build())
+          .tools(true)
+          .logging()
+          .build())
         .immediateExecution(true)
         .build();
 
       Tomcat tomcat = new Tomcat();
+      if(LoadedConstants.HTTP_PORT!=null){
+        tomcat.getConnector()
+          .setPort(Integer.parseInt(LoadedConstants.HTTP_PORT));
+      } else {
+        tomcat.setPort(-1);
+        LOG.warning("Http setup is skipped: http port is not specified");
+      }
+
       String ctxPath = "";
       String docBase = new File(".").getAbsolutePath();
       Context ctx = tomcat.addContext(ctxPath, docBase);
@@ -125,14 +134,13 @@ public class OracleDatabaseMCPToolkit {
       filterMap.addURLPattern("/mcp/*");
       ctx.addFilterMap(filterMap);
 
-      if (LoadedConstants.HTTPS_PORT == null || LoadedConstants.KEYSTORE_PATH == null || LoadedConstants.KEYSTORE_PASSWORD == null)
-        throw new RuntimeException("SSL setup failed: HTTPS port, Keystore path or password not specified");
-
-    enableHttps(tomcat, LoadedConstants.KEYSTORE_PATH, LoadedConstants.KEYSTORE_PASSWORD);
+      if (!(LoadedConstants.HTTPS_PORT == null || LoadedConstants.KEYSTORE_PATH == null || LoadedConstants.KEYSTORE_PASSWORD == null))
+        //throw new RuntimeException("SSL setup failed: HTTPS port, Keystore path or password not specified");
+        enableHttps(tomcat);
 
       tomcat.start();
 
-      LOG.info("[oracle-db-mcp-toolkit] HTTP transport started on " + LoadedConstants.HTTPS_PORT + " (endpoint: /mcp)");
+      LOG.info("[oracle-db-mcp-toolkit] HTTP transport started on " + LoadedConstants.HTTP_PORT + " (endpoint: /mcp)");
       return server;
     } catch (Exception e) {
       throw new RuntimeException("Failed to start HTTP/streamable server", e);
@@ -143,11 +151,9 @@ public class OracleDatabaseMCPToolkit {
    * Configures and enables HTTPS on the provided Tomcat server using the specified keystore.
    *
    * @param tomcat          the Tomcat server instance to configure
-   * @param keystorePath    the file path to the PKCS12 keystore containing the SSL certificate
-   * @param keystorePassword the password for the keystore
    * @throws RuntimeException if the HTTPS connector or SSL configuration fails
    */
-  private static void enableHttps(Tomcat tomcat, String keystorePath, String keystorePassword) {
+  private static void enableHttps(Tomcat tomcat) {
     try {
       // Create HTTPS connector
       Connector https = new Connector("org.apache.coyote.http11.Http11NioProtocol");
@@ -167,8 +173,8 @@ public class OracleDatabaseMCPToolkit {
           SSLHostConfigCertificate.Type.RSA
       );
 
-      cert.setCertificateKeystoreFile(keystorePath);
-      cert.setCertificateKeystorePassword(keystorePassword);
+      cert.setCertificateKeystoreFile(LoadedConstants.KEYSTORE_PATH);
+      cert.setCertificateKeystorePassword(LoadedConstants.KEYSTORE_PASSWORD);
       cert.setCertificateKeystoreType("PKCS12");
 
       // Attach certificate to SSL config
@@ -181,9 +187,9 @@ public class OracleDatabaseMCPToolkit {
       tomcat.getService().addConnector(https);
 
     } catch (Exception e) {
+      LOG.log(Level.SEVERE, "Failed to start HTTPS connector", e);
       throw new RuntimeException("Failed to enable HTTPS on Tomcat", e);
     }
   }
-
 
 }

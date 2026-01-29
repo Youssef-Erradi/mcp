@@ -8,15 +8,29 @@
 package com.oracle.database.mcptoolkit.oauth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.JWKMatcher;
+import com.nimbusds.jose.jwk.JWKSelector;
+import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
-import java.util.Base64;
+import java.text.ParseException;
+import java.util.Date;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,63 +46,156 @@ import java.util.logging.Logger;
  */
 public class OAuth2TokenValidator {
   private static final OAuth2Configuration OAUTH_CONFIG = OAuth2Configuration.getInstance();
-  private static final Logger LOG = Logger.getLogger(OAuth2TokenValidator.class.getName());
+  private static final OAuth2TokenValidator INSTANCE = new OAuth2TokenValidator();
+  private static final Logger LOGGER = Logger.getLogger(OAuth2TokenValidator.class.getName());
+
+  private JWKSource<SecurityContext> jwkSource;
+  private boolean isCacheDisabled;
+
+  public static OAuth2TokenValidator getInstance(){
+    return INSTANCE;
+  }
 
   /**
-   * Validates the given access token.
-   * <p>
-   * If OAuth2 is not configured (as determined by OAuth2Configuration), this method
-   * delegates validation to the TokenGenerator instance for local verification.
-   * Otherwise, it performs an HTTP POST request to the OAuth2 introspection endpoint
-   * using the configured client credentials. The response is parsed as JSON, and the
-   * "active" field is checked to determine token validity.
-   * </p>
+   * Private constructor to initialize the OAuth2TokenValidator instance.
+   * It retrieves the OAuth2 authorization server URL and client ID from the OAuth2Configuration singleton.
+   * Then, it fetches the JSON Web Key Set (JWKS) URI from the OpenID configuration endpoint and creates a JWKSource instance.
+   * The JWKSource is used for token validation.
    *
-   * @param accessToken the OAuth2 access token to validate; must not be null or blank
+   * @throws RuntimeException if the JWKS URI is malformed
+   */
+  private OAuth2TokenValidator() {
+    if (!OAUTH_CONFIG.isOAuth2Configured())
+      return;
+
+    final var oauthServerURL = OAUTH_CONFIG.getAuthServer();
+    final var openIdConfigURISuffix = "/.well-known/openid-configuration";
+    final var openIdConfigurationPath = oauthServerURL + openIdConfigURISuffix;
+    final var jwksUrl = getJWKSURI(openIdConfigurationPath);
+
+    if (isCacheDisabled)
+      return;
+
+    try {
+      jwkSource = JWKSourceBuilder.create(URI.create(jwksUrl).toURL())
+        .cache(true)
+        .build();
+    } catch (MalformedURLException e) {
+      LOGGER.log(Level.SEVERE, e.getMessage(), e);
+      throw new RuntimeException(e);
+    }
+
+  }
+
+  /**
+   * <p>Validates an OAuth2 access token (JWT).</p>
+   *
+   * <p>If OAuth2 is not configured, this method uses a local TokenGenerator to verify the token.</p>
+   *
+   * <p>If OAuth2 is configured, it performs token validation by:
+   * <ol>
+   *   <li>Parsing the token as a Signed JWT.</li>
+   *   <li>Retrieving the JSON Web Key Set (JWKS) from the OAuth2 authorization server's OpenID configuration.</li>
+   *   <li>Verifying the token's signature using the public RSA key from the JWKS.</li>
+   *   <li>Checking the token's issuer, expiration time, not-before time claims. alongside Authorized Party if present.</li>
+   * </ol>
+   *</p>
+   *
+   * @param accessToken the OAuth2 access token to be validated
    * @return true if the token is valid, false otherwise
-   * @throws RuntimeException if an error occurs during token validation (e.g., network issues),
-   *         though exceptions are logged and handled internally by returning false
    */
   public boolean isTokenValid(final String accessToken) {
-    if (!OAUTH_CONFIG.isOAuth2Configured())
-      return TokenGenerator.getInstance().verifyToken(accessToken);
-
-    boolean isTokenValid = false;
     if (accessToken == null || accessToken.isBlank())
       return false;
 
-    final var clientCredentials = "%s:%s".formatted(OAUTH_CONFIG.getClientId(), OAUTH_CONFIG.getClientSecret());
-    final var encodedClientCredentials = Base64.getEncoder()
-      .encodeToString(clientCredentials.getBytes());
-    final var requestBody = "token=" + accessToken;
+    if (!OAUTH_CONFIG.isOAuth2Configured())
+      return TokenGenerator.getInstance()
+        .verifyToken(accessToken);
+
+    try {
+      final SignedJWT signedJWT = SignedJWT.parse(accessToken);
+      final JWKSelector selector = new JWKSelector(JWKMatcher.forJWSHeader(signedJWT.getHeader()));
+
+      if (isCacheDisabled) {
+        final var jwksUrl = getJWKSURI(OAUTH_CONFIG.getOpenIDConfigurationURI());
+        jwkSource = JWKSourceBuilder.create(URI.create(jwksUrl).toURL())
+          .cache(true)
+          .build();
+      }
+
+      final List<JWK> jwks = jwkSource.get(selector, null);
+      if (jwks == null || jwks.isEmpty())
+        return false;
+
+      // Verify signature using the first public RSA key
+      final JWSVerifier verifier = new RSASSAVerifier(jwks.get(0).toRSAKey());
+      if (!signedJWT.verify(verifier))
+        return false;
+
+      final JWTClaimsSet jwtClaims = signedJWT.getJWTClaimsSet();
+
+      final Date now = new Date();
+
+      final boolean validIssuer = OAUTH_CONFIG.getAuthServer().equals(jwtClaims.getIssuer());
+      final boolean notExpired = jwtClaims.getExpirationTime().after(now);
+      final boolean notBeforeTime = jwtClaims.getNotBeforeTime() == null || !jwtClaims.getNotBeforeTime().after(now);
+
+      // 'azp' Authorized Party claim is not always present in tokens issued by OAuth2 servers.
+      final boolean validAuthorizedParty = jwtClaims.getClaim("azp") == null ||
+        OAUTH_CONFIG.getClientId().equals(jwtClaims.getClaimAsString("azp"));
+
+      return validIssuer && notExpired && notBeforeTime && validAuthorizedParty;
+
+    } catch (ParseException | JOSEException | MalformedURLException e) {
+      LOGGER.log(Level.SEVERE, e.getMessage(), e);
+    }
+
+    return false;
+  }
+
+  /**
+   * <p>
+   *   Retrieves the JSON Web Key Set (JWKS) URI from the OpenID configuration endpoint.
+   * </p>
+   *
+   * @param openIdConfigurationURI the URI of the OpenID configuration endpoint
+   * @return the JWKS URI if successfully retrieved, null otherwise
+   */
+
+  private String getJWKSURI(final String openIdConfigurationURI) {
+    String jwksUri = null;
 
     try {
       final HttpClient client = HttpClient.newHttpClient();
       final HttpRequest request = HttpRequest.newBuilder()
-        .uri(URI.create(OAUTH_CONFIG.getIntrospectionEndpoint()))
-        .header("Authorization", "Basic " + encodedClientCredentials)
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+        .uri(URI.create(openIdConfigurationURI))
+        .GET()
         .build();
 
       final HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
+      isCacheDisabled = !response.headers()
+        .firstValue("Cache-Control")
+        .orElse("")
+        .contains("no-cache");
+
+      // TODO: max-age in case the OAuth2 server instructs the Client to cache the response
 
       final int statusCode = response.statusCode();
       if (statusCode == HttpServletResponse.SC_OK) {
         final var mapper = new ObjectMapper();
         final var jsonNode = mapper.readTree(response.body());
 
-        isTokenValid = jsonNode.get("active").asBoolean();
+        jwksUri = jsonNode.get("jwks_uri").asText();
       }
     } catch (IOException | InterruptedException e) {
-      LOG.log(Level.SEVERE, e.getMessage(), e);
+      LOGGER.log(Level.SEVERE, e.getMessage(), e);
 
       if (e instanceof InterruptedException)
         Thread.currentThread()
           .interrupt();
     }
 
-    return isTokenValid;
+    return jwksUri;
   }
 
 }

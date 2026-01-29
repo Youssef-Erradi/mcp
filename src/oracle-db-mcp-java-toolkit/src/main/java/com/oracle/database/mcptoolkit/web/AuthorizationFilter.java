@@ -36,7 +36,7 @@ public class AuthorizationFilter implements Filter {
   /**
    * Validator instance used to verify the validity of OAuth2 access tokens.
    */
-  private static final OAuth2TokenValidator VALIDATOR = new OAuth2TokenValidator();
+  private static final OAuth2TokenValidator VALIDATOR = OAuth2TokenValidator.getInstance();
 
   /**
    * Intercepts incoming requests to authenticate them based on the presence and validity of an OAuth2 access token.
