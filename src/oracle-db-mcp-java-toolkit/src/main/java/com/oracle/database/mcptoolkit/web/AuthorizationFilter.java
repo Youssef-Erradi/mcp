@@ -7,6 +7,8 @@
 
 package com.oracle.database.mcptoolkit.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.database.mcptoolkit.oauth.OAuth2Configuration;
 import com.oracle.database.mcptoolkit.oauth.OAuth2TokenValidator;
 import jakarta.servlet.Filter;
@@ -18,6 +20,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 /**
  * The AuthorizationFilter class is a servlet filter that authenticates incoming requests
@@ -36,7 +39,7 @@ public class AuthorizationFilter implements Filter {
   /**
    * Validator instance used to verify the validity of OAuth2 access tokens.
    */
-  private static final OAuth2TokenValidator VALIDATOR = new OAuth2TokenValidator();
+  private static final OAuth2TokenValidator VALIDATOR = OAuth2TokenValidator.getInstance();
 
   /**
    * Intercepts incoming requests to authenticate them based on the presence and validity of an OAuth2 access token.
@@ -58,6 +61,18 @@ public class AuthorizationFilter implements Filter {
       final HttpServletRequest httpRequest = (HttpServletRequest) request;
       final HttpServletResponse httpResponse = (HttpServletResponse) response;
 
+      request = new CachedBodyRequestWrapper(httpRequest);
+
+      System.out.println(request.getReader().lines().collect(Collectors.joining()));
+
+      final var toolName = new ObjectMapper()
+        .readTree(request.getReader()
+          .lines()
+          .collect(Collectors.joining("\n")))
+        .path("params")
+        .path("name")
+        .asText();
+
       final String authHeader = httpRequest.getHeader("Authorization");
       if (authHeader == null || !authHeader.startsWith("Bearer ")) {
         handleError(httpResponse, httpRequest);
@@ -65,7 +80,7 @@ public class AuthorizationFilter implements Filter {
       }
 
       final String token = authHeader.substring("Bearer ".length()).trim();
-      if (!VALIDATOR.isTokenValid(token)) {
+      if (!VALIDATOR.isTokenValid(token, toolName)) {
         handleError(httpResponse, httpRequest);
         return;
       }

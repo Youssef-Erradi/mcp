@@ -26,12 +26,8 @@ public class OAuth2Configuration {
 
   /** The OAuth2 authorization server URL. */
   private final String authServer;
-  /** The OAuth2 token introspection endpoint URL. */
-  private final String introspectionEndpoint;
   /** The OAuth2 client ID. */
   private final String clientId;
-  /** The OAuth2 client secret. */
-  private final String clientSecret;
 
   /** Flag indicating whether authentication is enabled. */
   private final boolean isAuthenticationEnabled;
@@ -47,10 +43,8 @@ public class OAuth2Configuration {
   private OAuth2Configuration() {
     isAuthenticationEnabled = LoadedConstants.ENABLE_AUTH;
     authServer = LoadedConstants.AUTH_SERVER;
-    introspectionEndpoint = LoadedConstants.INTROSPECTION_ENDPOINT;
     clientId = LoadedConstants.CLIENT_ID;
-    clientSecret = LoadedConstants.CLIENT_SECRET;
-    isOAuth2Configured = authServer != null && introspectionEndpoint != null && clientId != null && clientSecret != null;
+    isOAuth2Configured = authServer != null && clientId != null;
 
     if (!isAuthenticationEnabled)
       LOG.warning("Authentication is disabled");
@@ -61,7 +55,7 @@ public class OAuth2Configuration {
         LOG.info("OAuth2 is configured");
       else {
         LOG.warning("OAuth2 is not configured");
-        if (authServer != null || introspectionEndpoint != null || clientId != null || clientSecret != null) {
+        if (authServer != null || clientId != null) {
           final var warningMessage = getMissingConfigurationWarningMessage();
 
           LOG.warning(warningMessage);
@@ -79,14 +73,8 @@ public class OAuth2Configuration {
     if (authServer == null)
       warningMessages.add("Authentication server URL (-DauthServer)");
 
-    if (introspectionEndpoint == null)
-      warningMessages.add("Introspection endpoint (-DintrospectionEndpoint)");
-
     if (clientId == null)
       warningMessages.add("Client ID (-DclientId)");
-
-    if (clientSecret == null)
-      warningMessages.add("Client secret (-DclientSecret)");
 
     return mainMessage + String.join(", ", warningMessages);
   }
@@ -119,24 +107,6 @@ public class OAuth2Configuration {
   }
 
   /**
-   * Returns the OAuth2 client secret.
-   *
-   * @return the client secret
-   */
-  public String getClientSecret() {
-    return clientSecret;
-  }
-
-  /**
-   * Returns the OAuth2 token introspection endpoint URL.
-   *
-   * @return the introspection endpoint URL
-   */
-  public String getIntrospectionEndpoint() {
-    return introspectionEndpoint;
-  }
-
-  /**
    * Checks if authentication is enabled.
    *
    * @return true if authentication is enabled, false otherwise
@@ -153,5 +123,8 @@ public class OAuth2Configuration {
   public boolean isOAuth2Configured() {
     return isOAuth2Configured;
   }
-}
 
+  public String getOpenIDConfigurationURI() {
+    return getAuthServer() + "/.well-known/openid-configuration";
+  }
+}

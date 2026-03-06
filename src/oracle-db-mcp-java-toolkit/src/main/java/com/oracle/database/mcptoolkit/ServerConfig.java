@@ -255,4 +255,12 @@ public final class ServerConfig {
     return false;
   }
 
+  public static Optional<String> getToolSetByToolName(final String toolName) {
+    for (final var entry : BUILTIN_TOOLSETS.entrySet())
+      if (entry.getValue().contains(toolName))
+        return Optional.of(entry.getKey());
+
+    return Optional.empty();
+  }
+
 }

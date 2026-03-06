@@ -79,9 +79,11 @@ public class OracleDatabaseMCPToolkit {
     }
     Utils.addSyncToolSpecifications(serverInstance, config);
 
-    Thread pollingThread = new Thread(() -> pollConfigFile(), "config-file-poller");
-    pollingThread.setDaemon(true);
-    pollingThread.start();
+    if (LoadedConstants.CONFIG_FILE != null) {
+      Thread pollingThread = new Thread(OracleDatabaseMCPToolkit::pollConfigFile, "config-file-poller");
+      pollingThread.setDaemon(true);
+      pollingThread.start();
+    }
   }
 
   private OracleDatabaseMCPToolkit() {
@@ -96,7 +98,6 @@ public class OracleDatabaseMCPToolkit {
       HttpServletStreamableServerTransportProvider transport =
         HttpServletStreamableServerTransportProvider.builder()
           .objectMapper(new ObjectMapper())
-          .keepAliveInterval(Duration.ofSeconds(60))
           .mcpEndpoint("/mcp")
           .build();
 
@@ -105,12 +106,18 @@ public class OracleDatabaseMCPToolkit {
         .serverInfo("oracle-db-mcp-toolkit", "1.0.0")
         .capabilities(McpSchema.ServerCapabilities.builder()
            .tools(true)
-           .logging()
            .build())
         .immediateExecution(true)
         .build();
 
       Tomcat tomcat = new Tomcat();
+      if(LoadedConstants.HTTP_PORT!=null){
+        tomcat.getConnector()
+          .setPort(Integer.parseInt(LoadedConstants.HTTP_PORT));
+      } else {
+        tomcat.setPort(-1);
+        LOG.warning("Http setup is skipped: http port is not specified");
+      }
       String ctxPath = "";
       String docBase = new File(".").getAbsolutePath();
       Context ctx = tomcat.addContext(ctxPath, docBase);
@@ -138,14 +145,13 @@ public class OracleDatabaseMCPToolkit {
       filterMap.addURLPattern("/mcp/*");
       ctx.addFilterMap(filterMap);
 
-      if (LoadedConstants.HTTPS_PORT == null || LoadedConstants.KEYSTORE_PATH == null || LoadedConstants.KEYSTORE_PASSWORD == null)
-        throw new RuntimeException("SSL setup failed: HTTPS port, Keystore path or password not specified");
-
-      enableHttps(tomcat);
+      if (!(LoadedConstants.HTTPS_PORT == null || LoadedConstants.KEYSTORE_PATH == null || LoadedConstants.KEYSTORE_PASSWORD == null))
+        //throw new RuntimeException("SSL setup failed: HTTPS port, Keystore path or password not specified");
+        enableHttps(tomcat);
 
       tomcat.start();
 
-      LOG.info("[oracle-db-mcp-toolkit] HTTP transport started on " + LoadedConstants.HTTPS_PORT + " (endpoint: /mcp)");
+      LOG.info("[oracle-db-mcp-toolkit] HTTP transport started on " + LoadedConstants.HTTP_PORT + " (endpoint: /mcp)");
       return server;
     } catch (Exception e) {
       throw new RuntimeException("Failed to start HTTP/streamable server", e);
