@@ -70,6 +70,7 @@ public final class DatabaseOperatorTools {
     tools.add(getTransactionTool(config));
     tools.add(getTableManagementTool(config));
     tools.add(getDbPingTool(config));
+    tools.add(getDbSessionContextTool(config));
     tools.add(getDbMetricsTool(config));
     tools.add(getExplainAndExecutePlanTool(config));
 
@@ -378,6 +379,35 @@ public final class DatabaseOperatorTools {
           return McpSchema.CallToolResult.builder()
                   .structuredContent(sc)
                   .addTextContent(text)
+                  .build();
+        }
+      }))
+    .build();
+  }
+
+  private static McpServerFeatures.SyncToolSpecification getDbSessionContextTool(ServerConfig config) {
+    return McpServerFeatures.SyncToolSpecification.builder()
+      .tool(McpSchema.Tool.builder()
+         .name("db-session-context")
+         .title("DB Session Context")
+         .description("Returns SESSION_USER, CURRENT_USER, and ORA_END_USER_CONTEXT.username for DeepSec diagnostics.")
+         .inputSchema(ToolSchemas.NO_INPUT_SCHEMA)
+         .build())
+      .callHandler((exchange, callReq) -> tryCall(() -> {
+        try (Connection c = openConnection(config, null);
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("""
+                     SELECT
+                       SYS_CONTEXT('USERENV', 'SESSION_USER') AS SESSION_USER,
+                       SYS_CONTEXT('USERENV', 'CURRENT_USER') AS CURRENT_USER,
+                       ORA_END_USER_CONTEXT.username AS END_USER_CONTEXT_USERNAME
+                     FROM dual
+                     """)) {
+          List<Map<String,Object>> rows = rsToList(rs);
+          Map<String,Object> payload = rows.isEmpty() ? new LinkedHashMap<>() : rows.get(0);
+          return McpSchema.CallToolResult.builder()
+                  .structuredContent(payload)
+                  .addTextContent(new ObjectMapper().writeValueAsString(payload))
                   .build();
         }
       }))
