@@ -8,6 +8,9 @@
 package com.oracle.database.mcptoolkit.web;
 
 import com.oracle.database.mcptoolkit.oauth.AuthContext;
+import com.oracle.database.mcptoolkit.LoadedConstants;
+import com.oracle.database.mcptoolkit.oauth.DeepSecDatabaseTokenProvider;
+import com.oracle.database.mcptoolkit.oauth.EndUserSecurityContextHolder;
 import com.oracle.database.mcptoolkit.oauth.OAuth2Configuration;
 import com.oracle.database.mcptoolkit.oauth.OAuth2TokenValidator;
 import jakarta.servlet.Filter;
@@ -17,8 +20,12 @@ import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import oracle.jdbc.EndUserSecurityContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The AuthorizationFilter class is a servlet filter that authenticates incoming requests
@@ -73,14 +80,45 @@ public class AuthorizationFilter implements Filter {
       }
 
       AuthContext.set(new AuthContext.AuthenticationInfo(validationResult.scopes()));
+      if (LoadedConstants.DEEPSEC_ENABLED) {
+        try {
+          EndUserSecurityContextHolder.set(createEndUserSecurityContext(token));
+        } catch (IllegalStateException e) {
+          httpResponse.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, e.getMessage());
+          return;
+        }
+      }
     }
 
-    // token is valid
     try {
+      // token is valid
       chain.doFilter(request, response);
     } finally {
       AuthContext.clear();
+      EndUserSecurityContextHolder.clear();
     }
+  }
+
+  private EndUserSecurityContext createEndUserSecurityContext(String endUserToken) {
+    EndUserSecurityContext context = EndUserSecurityContext.createWithToken(
+            DeepSecDatabaseTokenProvider.getToken(),
+            endUserToken);
+
+    Set<String> roles = parseDataRoles();
+    if (!roles.isEmpty()) {
+      context = context.withDataRoles(roles);
+    }
+    return context;
+  }
+
+  private Set<String> parseDataRoles() {
+    if (LoadedConstants.DEEPSEC_DATA_ROLES == null || LoadedConstants.DEEPSEC_DATA_ROLES.isBlank()) {
+      return Set.of();
+    }
+    return Arrays.stream(LoadedConstants.DEEPSEC_DATA_ROLES.split(","))
+            .map(String::trim)
+            .filter(role -> !role.isEmpty())
+            .collect(Collectors.toUnmodifiableSet());
   }
 
   /**
@@ -93,13 +131,17 @@ public class AuthorizationFilter implements Filter {
    */
   private void handleError(HttpServletResponse httpResponse, HttpServletRequest httpRequest) throws IOException {
     final String serverURL = WebUtils.buildURLFromRequest(httpRequest);
-    final var resourceMetadataURL = serverURL + "/.well-known/oauth-protected-resource";
+    final String resourceMetadataURL = serverURL + "/.well-known/oauth-protected-resource";
+    final String scopes = LoadedConstants.MCP_SCOPES == null || LoadedConstants.MCP_SCOPES.isBlank()
+            ? "openid"
+            : LoadedConstants.MCP_SCOPES;
 
     httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
     httpResponse.setHeader("WWW-Authenticate",
       "Bearer error=\"invalid_request\", " +
         "error_description=\"Access token is invalid or not provided in the request\", " +
-        "resource_metadata=\"" + resourceMetadataURL + "\"");
+        "resource_metadata=\"" + resourceMetadataURL + "\", " +
+        "scope=\"" + scopes + "\"");
     final String json = """
             {
                 "error": "invalid_request",

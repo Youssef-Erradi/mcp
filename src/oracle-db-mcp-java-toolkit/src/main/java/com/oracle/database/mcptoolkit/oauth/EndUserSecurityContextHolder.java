@@ -1,0 +1,44 @@
+/*
+ ** Oracle Database MCP Toolkit version 1.0.0
+ **
+ ** Copyright (c) 2026 Oracle and/or its affiliates.
+ ** Licensed under the Universal Permissive License v 1.0 as shown at https://oss.oracle.com/licenses/upl/
+ */
+
+package com.oracle.database.mcptoolkit.oauth;
+
+import oracle.jdbc.EndUserSecurityContext;
+import oracle.jdbc.spi.EndUserSecurityContextProvider;
+
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * Request-scoped end-user security context provider used by Oracle JDBC Deep Data Security.
+ */
+public final class EndUserSecurityContextHolder implements EndUserSecurityContextProvider {
+  private static final Logger LOG = Logger.getLogger(EndUserSecurityContextHolder.class.getName());
+  private static final ThreadLocal<EndUserSecurityContext> THREAD_CONTEXT = new ThreadLocal<>();
+  private static final String NAME = "oracle-db-mcp-toolkit-end-user-security-context";
+
+  public static void set(EndUserSecurityContext context) {
+    THREAD_CONTEXT.set(context);
+    LOG.log(Level.FINER, "End-user security context set for current thread");
+  }
+
+  public static void clear() {
+    THREAD_CONTEXT.remove();
+    LOG.log(Level.FINER, "End-user security context cleared for current thread");
+  }
+
+  @Override
+  public EndUserSecurityContext getEndUserSecurityContext(Map<Parameter, CharSequence> parameterValues) {
+    return THREAD_CONTEXT.get();
+  }
+
+  @Override
+  public String getName() {
+    return NAME;
+  }
+}
