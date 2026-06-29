@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -22,6 +23,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * The OAuth2TokenValidator class is responsible for validating OAuth2 access tokens.
@@ -68,7 +71,7 @@ public class OAuth2TokenValidator {
     final var clientCredentials = "%s:%s".formatted(OAUTH_CONFIG.getClientId(), OAUTH_CONFIG.getClientSecret());
     final var encodedClientCredentials = Base64.getEncoder()
       .encodeToString(clientCredentials.getBytes());
-    final var requestBody = "token=" + accessToken;
+    final var requestBody = "token=" + URLEncoder.encode(accessToken, UTF_8);
 
     try {
       final HttpClient client = HttpClient.newHttpClient();
@@ -90,6 +93,12 @@ public class OAuth2TokenValidator {
         isTokenValid = active != null && active.asBoolean();
         if (isTokenValid) {
           scopes = extractScopes(jsonNode, OAUTH_CONFIG.getScopeClaimPath());
+        if (!isTokenValid) {
+          LOG.log(Level.WARNING, () -> "OAuth2 token introspection returned inactive token: " + response.body());
+        }
+      } else {
+        LOG.log(Level.WARNING, () -> "OAuth2 token introspection failed with HTTP "
+                + statusCode + ": " + response.body());
         }
       }
     } catch (IOException | InterruptedException e) {
