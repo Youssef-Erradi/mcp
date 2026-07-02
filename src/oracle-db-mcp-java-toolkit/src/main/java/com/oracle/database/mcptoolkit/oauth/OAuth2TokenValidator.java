@@ -7,20 +7,28 @@
 
 package com.oracle.database.mcptoolkit.oauth;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oracle.database.mcptoolkit.LoadedConstants;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.RSAPublicKeySpec;
+import java.time.Instant;
 import java.util.Base64;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -39,6 +47,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class OAuth2TokenValidator {
   private static final OAuth2Configuration OAUTH_CONFIG = OAuth2Configuration.getInstance();
   private static final Logger LOG = Logger.getLogger(OAuth2TokenValidator.class.getName());
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static volatile JwksCache jwksCache;
 
   /**
    * Validates the given access token.
@@ -56,18 +66,26 @@ public class OAuth2TokenValidator {
    *         though exceptions are logged and handled internally by returning false
    */
   public boolean isTokenValid(final String accessToken) {
-    return validateToken(accessToken).valid();
-  }
-
-  public ValidationResult validateToken(final String accessToken) {
     if (!OAUTH_CONFIG.isOAuth2Configured())
-      return new ValidationResult(TokenGenerator.getInstance().verifyToken(accessToken), Set.of());
+      return TokenGenerator.getInstance().verifyToken(accessToken);
 
     boolean isTokenValid = false;
-    Set<String> scopes = Set.of();
     if (accessToken == null || accessToken.isBlank())
-      return new ValidationResult(false, scopes);
+      return false;
 
+    if ("jwt".equals(LoadedConstants.AUTH_VALIDATION_MODE))
+      return isJwtTokenValid(accessToken);
+
+    if (!"introspection".equals(LoadedConstants.AUTH_VALIDATION_MODE)) {
+      LOG.log(Level.WARNING, () -> "Unsupported auth.validationMode: " + LoadedConstants.AUTH_VALIDATION_MODE);
+      return false;
+    }
+
+    return isTokenValidByIntrospection(accessToken);
+  }
+
+  private boolean isTokenValidByIntrospection(final String accessToken) {
+    boolean isTokenValid = false;
     final var clientCredentials = "%s:%s".formatted(OAUTH_CONFIG.getClientId(), OAUTH_CONFIG.getClientSecret());
     final var encodedClientCredentials = Base64.getEncoder()
       .encodeToString(clientCredentials.getBytes());
@@ -86,20 +104,15 @@ public class OAuth2TokenValidator {
 
       final int statusCode = response.statusCode();
       if (statusCode == HttpServletResponse.SC_OK) {
-        final var mapper = new ObjectMapper();
-        final var jsonNode = mapper.readTree(response.body());
+        final var jsonNode = MAPPER.readTree(response.body());
 
-        JsonNode active = jsonNode.get("active");
-        isTokenValid = active != null && active.asBoolean();
-        if (isTokenValid) {
-          scopes = extractScopes(jsonNode, OAUTH_CONFIG.getScopeClaimPath());
+        isTokenValid = jsonNode.get("active").asBoolean();
         if (!isTokenValid) {
           LOG.log(Level.WARNING, () -> "OAuth2 token introspection returned inactive token: " + response.body());
         }
       } else {
         LOG.log(Level.WARNING, () -> "OAuth2 token introspection failed with HTTP "
                 + statusCode + ": " + response.body());
-        }
       }
     } catch (IOException | InterruptedException e) {
       LOG.log(Level.SEVERE, e.getMessage(), e);
@@ -109,51 +122,184 @@ public class OAuth2TokenValidator {
           .interrupt();
     }
 
-    return new ValidationResult(isTokenValid, scopes);
+    return isTokenValid;
   }
 
-  static Set<String> extractScopes(JsonNode introspectionResponse, String claimPath) {
-    if (claimPath == null || claimPath.isBlank()) {
-      claimPath = "scope";
+  private boolean isJwtTokenValid(final String accessToken) {
+    try {
+      requireJwtConfig();
+
+      String[] parts = accessToken.split("\\.");
+      if (parts.length != 3) {
+        LOG.log(Level.WARNING, "JWT validation failed: token does not have three parts");
+        return false;
+      }
+
+      JsonNode header = readJwtPart(parts[0]);
+      JsonNode claims = readJwtPart(parts[1]);
+
+      String algorithm = textClaim(header, "alg");
+      if (!"RS256".equals(algorithm)) {
+        LOG.log(Level.WARNING, () -> "JWT validation failed: unsupported alg " + algorithm);
+        return false;
+      }
+
+      String keyId = textClaim(header, "kid");
+      RSAPublicKey publicKey = getSigningKey(keyId);
+      if (publicKey == null) {
+        LOG.log(Level.WARNING, () -> "JWT validation failed: no JWKS key found for kid " + keyId);
+        return false;
+      }
+
+      if (!verifySignature(parts[0] + "." + parts[1], parts[2], publicKey)) {
+        LOG.log(Level.WARNING, "JWT validation failed: invalid signature");
+        return false;
+      }
+
+      if (!Objects.equals(LoadedConstants.AUTH_ISSUER, textClaim(claims, "iss"))) {
+        LOG.log(Level.WARNING, "JWT validation failed: issuer mismatch");
+        return false;
+      }
+
+      if (!hasAudience(claims.get("aud"), LoadedConstants.AUTH_AUDIENCE)) {
+        LOG.log(Level.WARNING, "JWT validation failed: audience mismatch");
+        return false;
+      }
+
+      long now = Instant.now().getEpochSecond();
+      JsonNode exp = claims.get("exp");
+      if (exp == null || !exp.canConvertToLong() || exp.asLong() <= now) {
+        LOG.log(Level.WARNING, "JWT validation failed: token expired or missing exp");
+        return false;
+      }
+
+      JsonNode nbf = claims.get("nbf");
+      if (nbf != null && nbf.canConvertToLong() && nbf.asLong() > now) {
+        LOG.log(Level.WARNING, "JWT validation failed: token not active yet");
+        return false;
+      }
+
+      return true;
+    } catch (IOException | GeneralSecurityException | IllegalArgumentException e) {
+      LOG.log(Level.WARNING, "JWT validation failed: " + e.getMessage(), e);
+      return false;
+    }
+  }
+
+  private void requireJwtConfig() {
+    if (isBlank(LoadedConstants.AUTH_ISSUER))
+      throw new IllegalArgumentException("auth.issuer is required for JWT validation");
+    if (isBlank(LoadedConstants.AUTH_JWKS_URI))
+      throw new IllegalArgumentException("auth.jwksUri is required for JWT validation");
+    if (isBlank(LoadedConstants.AUTH_AUDIENCE))
+      throw new IllegalArgumentException("auth.audience is required for JWT validation");
+  }
+
+  private JsonNode readJwtPart(String encodedPart) throws IOException {
+    return MAPPER.readTree(Base64.getUrlDecoder().decode(encodedPart));
+  }
+
+  private RSAPublicKey getSigningKey(String keyId) throws IOException, GeneralSecurityException {
+    JsonNode keys = getJwks().get("keys");
+    if (keys == null || !keys.isArray()) {
+      throw new IOException("JWKS response does not contain keys array");
     }
 
-    JsonNode scopeNode = introspectionResponse;
-    for (String segment : claimPath.split("\\.")) {
-      if (segment == null || segment.isBlank()) {
+    for (JsonNode key : keys) {
+      if (!"RSA".equals(textClaim(key, "kty"))) {
         continue;
       }
-      scopeNode = scopeNode == null ? null : scopeNode.get(segment);
-    }
-
-    if (scopeNode == null || scopeNode.isMissingNode() || scopeNode.isNull()) {
-      LOG.warning("OAuth token introspection response does not contain a scope claim at '"
-          + claimPath + "'. Configure -Doauth.scopeClaimPath=<claim.path> if your authorization server uses a different claim.");
-      return Set.of();
-    }
-
-    Set<String> scopes = new LinkedHashSet<>();
-    if (scopeNode.isTextual()) {
-      for (String scope : scopeNode.asText().split("\\s+")) {
-        if (!scope.isBlank()) {
-          scopes.add(scope);
-        }
+      String jwkKeyId = textClaim(key, "kid");
+      if (keyId != null && !keyId.equals(jwkKeyId)) {
+        continue;
       }
-      return scopes;
-    }
-
-    if (scopeNode.isArray()) {
-      for (JsonNode item : scopeNode) {
-        if (item != null && item.isTextual() && !item.asText().isBlank()) {
-          scopes.add(item.asText());
-        }
+      JsonNode modulus = key.get("n");
+      JsonNode exponent = key.get("e");
+      if (modulus == null || exponent == null) {
+        continue;
       }
-      return scopes;
+      return toRsaPublicKey(modulus.asText(), exponent.asText());
     }
-
-    LOG.warning("OAuth scope claim at '" + claimPath + "' must be a space-delimited string or an array. Configure -Doauth.scopeClaimPath=<claim.path> if needed.");
-    return Set.of();
+    return null;
   }
 
-  public record ValidationResult(boolean valid, Set<String> scopes) {}
+  private JsonNode getJwks() throws IOException {
+    JwksCache cache = jwksCache;
+    long now = Instant.now().getEpochSecond();
+    if (cache != null && cache.expiresAtEpochSecond() > now) {
+      return cache.jwks();
+    }
 
+    synchronized (OAuth2TokenValidator.class) {
+      cache = jwksCache;
+      now = Instant.now().getEpochSecond();
+      if (cache != null && cache.expiresAtEpochSecond() > now) {
+        return cache.jwks();
+      }
+
+      try {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(LoadedConstants.AUTH_JWKS_URI))
+                .header("Accept", "application/json")
+                .GET()
+                .build();
+        HttpResponse<String> response = HttpClient.newHttpClient().send(request, BodyHandlers.ofString());
+        if (response.statusCode() != HttpServletResponse.SC_OK) {
+          throw new IOException("JWKS request failed with HTTP " + response.statusCode() + ": " + response.body());
+        }
+        JsonNode jwks = MAPPER.readTree(response.body());
+        long cacheSeconds = Math.max(LoadedConstants.AUTH_JWKS_CACHE_SECONDS, 1);
+        jwksCache = new JwksCache(jwks, Instant.now().getEpochSecond() + cacheSeconds);
+        return jwks;
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IOException("Interrupted while fetching JWKS", e);
+      }
+    }
+  }
+
+  private RSAPublicKey toRsaPublicKey(String encodedModulus, String encodedExponent)
+          throws GeneralSecurityException {
+    BigInteger modulus = new BigInteger(1, Base64.getUrlDecoder().decode(encodedModulus));
+    BigInteger exponent = new BigInteger(1, Base64.getUrlDecoder().decode(encodedExponent));
+    PublicKey publicKey = KeyFactory.getInstance("RSA")
+            .generatePublic(new RSAPublicKeySpec(modulus, exponent));
+    return (RSAPublicKey) publicKey;
+  }
+
+  private boolean verifySignature(String signingInput, String encodedSignature, RSAPublicKey publicKey)
+          throws GeneralSecurityException {
+    Signature signature = Signature.getInstance("SHA256withRSA");
+    signature.initVerify(publicKey);
+    signature.update(signingInput.getBytes(UTF_8));
+    return signature.verify(Base64.getUrlDecoder().decode(encodedSignature));
+  }
+
+  private boolean hasAudience(JsonNode audienceClaim, String expectedAudience) {
+    if (audienceClaim == null) {
+      return false;
+    }
+    if (audienceClaim.isTextual()) {
+      return expectedAudience.equals(audienceClaim.asText());
+    }
+    if (audienceClaim.isArray()) {
+      for (JsonNode audience : audienceClaim) {
+        if (expectedAudience.equals(audience.asText())) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private String textClaim(JsonNode node, String field) {
+    JsonNode value = node == null ? null : node.get(field);
+    return value == null || value.isNull() ? null : value.asText();
+  }
+
+  private boolean isBlank(String value) {
+    return value == null || value.isBlank();
+  }
+
+  private record JwksCache(JsonNode jwks, long expiresAtEpochSecond) {}
 }
