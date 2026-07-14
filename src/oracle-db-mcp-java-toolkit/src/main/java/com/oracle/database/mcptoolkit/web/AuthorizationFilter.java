@@ -10,6 +10,7 @@ package com.oracle.database.mcptoolkit.web;
 import com.oracle.database.mcptoolkit.oauth.AuthContext;
 import com.oracle.database.mcptoolkit.LoadedConstants;
 import com.oracle.database.mcptoolkit.oauth.DeepSecDatabaseTokenProvider;
+import com.oracle.database.mcptoolkit.oauth.AuthenticatedPrincipal;
 import com.oracle.database.mcptoolkit.oauth.EndUserSecurityContextHolder;
 import com.oracle.database.mcptoolkit.oauth.OAuth2Configuration;
 import com.oracle.database.mcptoolkit.oauth.OAuth2TokenValidator;
@@ -80,13 +81,16 @@ public class AuthorizationFilter implements Filter {
       }
 
       AuthContext.set(new AuthContext.AuthenticationInfo(validationResult.scopes()));
+      AuthenticatedPrincipal principal = AuthenticatedPrincipal.fromValidatedToken(token);
       if (LoadedConstants.DEEPSEC_ENABLED) {
         try {
-          EndUserSecurityContextHolder.set(createEndUserSecurityContext(token));
+          EndUserSecurityContextHolder.set(createEndUserSecurityContext(token), principal);
         } catch (IllegalStateException e) {
           httpResponse.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, e.getMessage());
           return;
         }
+      } else {
+        EndUserSecurityContextHolder.setPrincipal(principal);
       }
     }
 

@@ -19,12 +19,21 @@ import java.util.logging.Logger;
  */
 public final class EndUserSecurityContextHolder implements EndUserSecurityContextProvider {
   private static final Logger LOG = Logger.getLogger(EndUserSecurityContextHolder.class.getName());
-  private static final ThreadLocal<EndUserSecurityContext> THREAD_CONTEXT = new ThreadLocal<>();
+  private static final ThreadLocal<RequestContext> THREAD_CONTEXT = new ThreadLocal<>();
   private static final String NAME = "oracle-db-mcp-toolkit-end-user-security-context";
 
-  public static void set(EndUserSecurityContext context) {
-    THREAD_CONTEXT.set(context);
+  public static void set(EndUserSecurityContext context, AuthenticatedPrincipal principal) {
+    THREAD_CONTEXT.set(new RequestContext(context, principal));
     LOG.log(Level.FINER, "End-user security context set for current thread");
+  }
+
+  public static void setPrincipal(AuthenticatedPrincipal principal) {
+    THREAD_CONTEXT.set(new RequestContext(null, principal));
+  }
+
+  public static AuthenticatedPrincipal getAuthenticatedPrincipal() {
+    RequestContext context = THREAD_CONTEXT.get();
+    return context == null ? null : context.principal();
   }
 
   public static void clear() {
@@ -34,11 +43,16 @@ public final class EndUserSecurityContextHolder implements EndUserSecurityContex
 
   @Override
   public EndUserSecurityContext getEndUserSecurityContext(Map<Parameter, CharSequence> parameterValues) {
-    return THREAD_CONTEXT.get();
+    RequestContext context = THREAD_CONTEXT.get();
+    return context == null ? null : context.endUserSecurityContext();
   }
 
   @Override
   public String getName() {
     return NAME;
   }
+
+  private record RequestContext(
+          EndUserSecurityContext endUserSecurityContext,
+          AuthenticatedPrincipal principal) {}
 }

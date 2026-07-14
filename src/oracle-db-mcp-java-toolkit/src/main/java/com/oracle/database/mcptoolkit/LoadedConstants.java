@@ -32,6 +32,12 @@ public final class LoadedConstants {
   public static final char[] DB_PASSWORD = System.getProperty("db.password") != null
       ? System.getProperty("db.password").toCharArray()
       : null;
+  public static final int DB_TRANSACTION_IDLE_TIMEOUT_SECONDS =
+          Integer.parseInt(System.getProperty("db.transactionIdleTimeoutSeconds", "120"));
+  public static final int DB_TRANSACTION_MAX_LIFETIME_SECONDS =
+          Integer.parseInt(System.getProperty("db.transactionMaxLifetimeSeconds", "300"));
+  public static final int DB_MAX_TRANSACTIONS_PER_USER =
+          Integer.parseInt(System.getProperty("db.maxTransactionsPerUser", "4"));
 
   /** OAuth config */
   public static final String ALLOWED_HOSTS= System.getProperty("allowedHosts","*");

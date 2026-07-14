@@ -746,6 +746,17 @@ Optional properties:
 
 * `-Ddeepsec.databaseAccessToken`: Static database-scoped token for local smoke tests. Prefer `deepsec.tokenEndpoint` plus client credentials for normal use.
 * `-Ddeepsec.dataRoles`: Comma-separated data roles to request explicitly in the end-user security context.
+* `-Ddb.transactionIdleTimeoutSeconds`: Rolls back an open transaction after this many unused seconds (default: `120`).
+* `-Ddb.transactionMaxLifetimeSeconds`: Absolute maximum lifetime for a transaction that spans tool calls (default: `300`).
+* `-Ddb.maxTransactionsPerUser`: Maximum concurrent open transactions for one authenticated user (default: `4`).
+
+Transactions that span MCP tool calls are bound to a non-reversible owner identifier derived from
+the validated token's `iss` and `sub` claims. Every query, resume, commit, and rollback verifies the
+same owner before touching the connection. Calls using one transaction are serialized because a
+JDBC connection cannot be used concurrently. Expired transactions are automatically rolled back
+and returned to the connection pool. A refreshed JWT can resume a transaction when its issuer and
+subject remain unchanged; opaque tokens without stable subject claims remain bound to the exact
+token and therefore require a new transaction after token rotation.
 
 In group-based DeepSec setups, leave `deepsec.dataRoles` unset and let the database activate data roles from group claims in the end-user token. For example, an OCI IAM access-token claim such as:
 
