@@ -804,6 +804,37 @@ The user-login scope and the DeepSec database-token scope are intentionally sepa
 * `mcp.scopes=openid` is advertised to MCP clients for browser login.
 * `deepsec.scope=OracleDBDB_ACCESS_SCOPE` is used by the MCP server to request the database-scoped token used in the Oracle JDBC end-user security context.
 
+#### DeepSec integration test
+
+The database-backed test is disabled during normal builds. It starts a localhost OAuth callback listener, opens the OCI browser login, uses Authorization Code with PKCE, and keeps the resulting user token only in memory. It then uses the production OJDBC provider SPI with a one-connection UCP pool and verifies `ORA_END_USER_CONTEXT.username`, mapped roles from `v$end_user_data_role`, and a real Oracle transaction resumed across separate simulated requests. The transaction check creates a savepoint, verifies that `DBMS_TRANSACTION.LOCAL_TRANSACTION_ID` remains stable after resumption, and exercises both commit and rollback through the production transaction registry.
+
+The configured `auth.redirectUri` must be registered on the OCI application and its port must be free while Maven runs. The test consumes the same `db.*`, `deepsec.*`, `authServer`, `clientId`, `clientSecret`, `auth.redirectUri`, `auth.upstreamScopes`, and `mcp.resourceUrl` system properties as the server. Do not run the MCP server on the callback port at the same time.
+
+For a one-user smoke test, provide only the expected mapped database roles. The expected username defaults to the access token's `sub` claim and can be overridden with `DEEPSEC_IT_USER_A_USERNAME`:
+
+```bash
+export DEEPSEC_IT_ENABLED=true
+export DEEPSEC_IT_USER_A_ROLES='CUSTOMER_READER,MCP_DUMMY_READER'
+
+mvn -Ddb.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
+    -Ddb.user=mcp_app_user \
+    -Ddb.password='your-db-password' \
+    -Dojdbc.ext.dir=/path/to/ojdbc/extensions \
+    -Ddeepsec.tokenEndpoint=https://idcs.example.com/oauth2/v1/token \
+    -Ddeepsec.clientId=database-token-client-id \
+    -Ddeepsec.clientSecret='database-token-client-secret' \
+    -Ddeepsec.scope=OracleDBDB_ACCESS_SCOPE \
+    -DauthServer=https://idcs.example.com \
+    -DclientId=user-login-client-id \
+    -DclientSecret='user-login-client-secret' \
+    -Dauth.redirectUri=http://localhost:8080/auth/callback \
+    -Dauth.upstreamScopes='openid OracleDBDB_ACCESS_SCOPE' \
+    -Dmcp.resourceUrl=http://localhost:8080/mcp \
+    -Dtest=DeepSecIntegrationTest test
+```
+
+The default one-user run also injects a distinct authenticated owner and verifies it is rejected before the held JDBC connection is touched, so a second OCI account is not required to test transaction ownership. For the stronger identity-provider check, set `DEEPSEC_IT_TWO_USERS=true`. The test then opens a second login, verifies the two token subjects differ, executes as A, then B, then A again on a pool limited to one physical connection, and uses the real user B owner for the denial check. OCI may bind the browser session to user A even with `prompt=login`; log out first or open the printed user-B authorization URL in an incognito/separate browser profile. Set `DEEPSEC_IT_USER_B_ROLES` only when that account has mapped roles that should also be asserted. Role names are compared exactly as the database returns them. `DEEPSEC_IT_DATABASE_ACCESS_TOKEN` remains available as an optional override; otherwise the test fetches the application database token through the configured `deepsec.*` provider.
+
 ### 4.6. Enabling Authentication without OAuth2
 
 _Note: This mode is used only for development and testing purposes._
