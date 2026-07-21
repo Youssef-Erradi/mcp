@@ -9,11 +9,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Base64;
+import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuthenticatedPrincipalTest {
   @AfterEach
@@ -44,6 +46,21 @@ class AuthenticatedPrincipalTest {
 
     assertEquals(principal, EndUserSecurityContextHolder.getAuthenticatedPrincipal());
     assertNull(new EndUserSecurityContextHolder().getEndUserSecurityContext(null));
+  }
+
+  @Test
+  void readsAzureRolesAndIdentifiesAzureAndOciIssuers() {
+    AuthenticatedPrincipal azure = AuthenticatedPrincipal.fromValidatedToken(jwt(
+            "{\"iss\":\"https://login.microsoftonline.com/tenant/v2.0\","
+                    + "\"sub\":\"alice\",\"roles\":[\"DatabaseReader\"]}"));
+    AuthenticatedPrincipal oci = AuthenticatedPrincipal.fromValidatedToken(jwt(
+            "{\"iss\":\"https://idcs-example.identity.oraclecloud.com/\","
+                    + "\"sub\":\"bob\",\"groups\":[\"CustomerReaders\"]}"));
+
+    assertEquals(List.of("DatabaseReader"), azure.roles());
+    assertTrue(azure.isAzureIssuer());
+    assertTrue(oci.isOciIssuer());
+    assertEquals(List.of("CustomerReaders"), oci.groups());
   }
 
   private String jwt(String payload) {

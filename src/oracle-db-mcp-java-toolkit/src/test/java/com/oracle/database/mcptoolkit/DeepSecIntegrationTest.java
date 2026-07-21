@@ -92,7 +92,7 @@ class DeepSecIntegrationTest {
       AtomicBoolean connectionTouched = new AtomicBoolean();
       if (userB == null) {
         EndUserSecurityContextHolder.setPrincipal(new AuthenticatedPrincipal(
-                deniedOwner, "integration-test", "different-user", List.of()));
+                deniedOwner, "integration-test", "different-user", List.of(), List.of()));
       } else {
         setRequestContext(databaseAccessToken, userB);
       }

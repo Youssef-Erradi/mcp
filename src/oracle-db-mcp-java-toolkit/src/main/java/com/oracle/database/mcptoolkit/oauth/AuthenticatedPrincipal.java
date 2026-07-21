@@ -21,7 +21,8 @@ public record AuthenticatedPrincipal(
         String ownerId,
         String issuer,
         String subject,
-        List<String> groups) {
+        List<String> groups,
+        List<String> roles) {
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   public static AuthenticatedPrincipal fromValidatedToken(String token) {
@@ -40,7 +41,8 @@ public record AuthenticatedPrincipal(
                   fingerprint((issuer == null ? "" : issuer) + "\0" + subject),
                   issuer,
                   subject,
-                  groups(claims));
+                  groups(claims),
+                  roles(claims));
         }
       }
     } catch (Exception ignored) {
@@ -48,7 +50,17 @@ public record AuthenticatedPrincipal(
     }
 
     return new AuthenticatedPrincipal(
-            fingerprint("token\0" + token), null, null, List.of());
+            fingerprint("token\0" + token), null, null, List.of(), List.of());
+  }
+
+  public boolean isAzureIssuer() {
+    String host = issuerHost();
+    return "login.microsoftonline.com".equals(host) || "sts.windows.net".equals(host);
+  }
+
+  public boolean isOciIssuer() {
+    String host = issuerHost();
+    return "identity.oraclecloud.com".equals(host) || host.endsWith(".identity.oraclecloud.com");
   }
 
   private static String firstText(JsonNode claims, String... names) {
@@ -69,7 +81,21 @@ public record AuthenticatedPrincipal(
   }
 
   private static List<String> groups(JsonNode claims) {
-    JsonNode value = claims.has("group") ? claims.get("group") : claims.get("groups");
+    return stringClaim(claims, "group", "groups");
+  }
+
+  private static List<String> roles(JsonNode claims) {
+    return stringClaim(claims, "roles");
+  }
+
+  private static List<String> stringClaim(JsonNode claims, String... names) {
+    JsonNode value = null;
+    for (String name : names) {
+      if (claims.has(name)) {
+        value = claims.get(name);
+        break;
+      }
+    }
     if (value == null) {
       return List.of();
     }
@@ -84,6 +110,18 @@ public record AuthenticatedPrincipal(
       groups.add(value.asText());
     }
     return List.copyOf(groups);
+  }
+
+  private String issuerHost() {
+    if (issuer == null) {
+      return "";
+    }
+    try {
+      java.net.URI uri = java.net.URI.create(issuer);
+      return uri.getHost() == null ? "" : uri.getHost().toLowerCase(java.util.Locale.ROOT);
+    } catch (IllegalArgumentException ignored) {
+      return "";
+    }
   }
 
   private static String fingerprint(String value) {

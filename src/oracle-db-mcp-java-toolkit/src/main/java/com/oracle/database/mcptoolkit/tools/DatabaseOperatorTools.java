@@ -399,8 +399,8 @@ public final class DatabaseOperatorTools {
       .tool(McpSchema.Tool.builder()
          .name("db-session-context")
          .title("DB Session Context")
-         .description("Returns SESSION_USER, CURRENT_USER, and ORA_END_USER_CONTEXT.username for DeepSec diagnostics.")
-         .inputSchema(ToolSchemas.NO_INPUT_SCHEMA)
+         .description("Returns database session identity, activated DeepSec roles, and provider-specific IAM roles or groups for diagnostics.")
+         .inputSchema(McpJsonMapper.getDefault(), ToolSchemas.NO_INPUT_SCHEMA)
          .build())
       .callHandler((exchange, callReq) -> tryCall(() -> {
         try (Connection c = openConnection(config, null);
@@ -414,6 +414,13 @@ public final class DatabaseOperatorTools {
                      """)) {
           List<Map<String,Object>> rows = rsToList(rs);
           Map<String,Object> payload = rows.isEmpty() ? new LinkedHashMap<>() : rows.get(0);
+          payload.put("roles", queryEndUserDataRoles(c));
+          AuthenticatedPrincipal principal = EndUserSecurityContextHolder.getAuthenticatedPrincipal();
+          if (principal != null && principal.isAzureIssuer()) {
+            payload.put("azureRoles", principal.roles());
+          } else if (principal != null && principal.isOciIssuer()) {
+            payload.put("ociGroups", principal.groups());
+          }
           return McpSchema.CallToolResult.builder()
                   .structuredContent(payload)
                   .addTextContent(new ObjectMapper().writeValueAsString(payload))
@@ -421,6 +428,18 @@ public final class DatabaseOperatorTools {
         }
       }))
     .build();
+  }
+
+  private static List<String> queryEndUserDataRoles(Connection connection) throws SQLException {
+    List<String> roles = new ArrayList<>();
+    try (Statement statement = connection.createStatement();
+         ResultSet resultSet = statement.executeQuery(
+                 "SELECT role_name FROM v$end_user_data_role ORDER BY role_name")) {
+      while (resultSet.next()) {
+        roles.add(resultSet.getString(1));
+      }
+    }
+    return roles;
   }
 
   private static McpServerFeatures.SyncToolSpecification getDbMetricsTool(ServerConfig config) {
