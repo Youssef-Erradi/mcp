@@ -53,6 +53,43 @@ public record AuthenticatedPrincipal(
             fingerprint("token\0" + token), null, null, List.of(), List.of());
   }
 
+  /**
+   * Derives an identity for Deep Data Security from a validated JWT access token.
+   *
+   * <p>Deep Data Security relies on the token's issuer and subject claims for end-user identity.
+   * Opaque tokens are deliberately not accepted here: they have no locally readable, stable identity
+   * that can be propagated consistently to the database.</p>
+   *
+   * @param token a validated JWT access token
+   * @return the principal represented by the JWT
+   * @throws IllegalArgumentException if the token is not a JWT or lacks {@code iss} or {@code sub}
+   */
+  public static AuthenticatedPrincipal fromValidatedDeepSecJwt(String token) {
+    if (token == null || token.isBlank()) {
+      throw new IllegalArgumentException("Validated JWT access token is required for Deep Data Security");
+    }
+
+    try {
+      String[] parts = token.split("\\.");
+      if (parts.length != 3) {
+        throw new IllegalArgumentException("Deep Data Security requires a JWT end-user access token");
+      }
+      JsonNode claims = MAPPER.readTree(Base64.getUrlDecoder().decode(parts[1]));
+      String issuer = text(claims, "iss");
+      String subject = text(claims, "sub");
+      if (issuer == null || subject == null) {
+        throw new IllegalArgumentException(
+                "Deep Data Security JWT end-user access token must contain iss and sub claims");
+      }
+      return new AuthenticatedPrincipal(
+              fingerprint(issuer + "\0" + subject), issuer, subject, groups(claims), roles(claims));
+    } catch (IllegalArgumentException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new IllegalArgumentException("Deep Data Security requires a readable JWT end-user access token", e);
+    }
+  }
+
   public boolean isAzureIssuer() {
     String host = issuerHost();
     return "login.microsoftonline.com".equals(host) || "sts.windows.net".equals(host);

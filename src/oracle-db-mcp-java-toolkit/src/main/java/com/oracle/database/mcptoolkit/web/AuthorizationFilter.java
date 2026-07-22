@@ -81,7 +81,15 @@ public class AuthorizationFilter implements Filter {
       }
 
       AuthContext.set(new AuthContext.AuthenticationInfo(validationResult.scopes()));
-      AuthenticatedPrincipal principal = AuthenticatedPrincipal.fromValidatedToken(token);
+      final AuthenticatedPrincipal principal;
+      try {
+        principal = LoadedConstants.DEEPSEC_ENABLED
+                ? AuthenticatedPrincipal.fromValidatedDeepSecJwt(token)
+                : AuthenticatedPrincipal.fromValidatedToken(token);
+      } catch (IllegalArgumentException e) {
+        handleError(httpResponse, httpRequest);
+        return;
+      }
       if (LoadedConstants.DEEPSEC_ENABLED) {
         try {
           EndUserSecurityContextHolder.set(createEndUserSecurityContext(token), principal);

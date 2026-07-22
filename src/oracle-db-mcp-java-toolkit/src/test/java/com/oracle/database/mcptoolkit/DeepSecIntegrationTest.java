@@ -186,11 +186,11 @@ class DeepSecIntegrationTest {
     EndUserSecurityContext context = EndUserSecurityContext.createWithToken(
             databaseAccessToken, fixture.accessToken());
     EndUserSecurityContextHolder.set(
-            context, AuthenticatedPrincipal.fromValidatedToken(fixture.accessToken()));
+            context, AuthenticatedPrincipal.fromValidatedDeepSecJwt(fixture.accessToken()));
   }
 
   private static String owner(UserFixture fixture) {
-    return AuthenticatedPrincipal.fromValidatedToken(fixture.accessToken()).ownerId();
+    return AuthenticatedPrincipal.fromValidatedDeepSecJwt(fixture.accessToken()).ownerId();
   }
 
   private static String queryDatabaseTransactionId(Connection connection) throws Exception {
@@ -275,7 +275,7 @@ class DeepSecIntegrationTest {
   }
 
   private static UserFixture fixture(String suffix, String accessToken) {
-    AuthenticatedPrincipal principal = AuthenticatedPrincipal.fromValidatedToken(accessToken);
+    AuthenticatedPrincipal principal = AuthenticatedPrincipal.fromValidatedDeepSecJwt(accessToken);
     String expectedUsername = optionalEnvironment("DEEPSEC_IT_USER_" + suffix + "_USERNAME");
     if (expectedUsername == null) {
       expectedUsername = principal.subject();

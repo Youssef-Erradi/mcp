@@ -720,7 +720,7 @@ java \
     -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
 
-Use introspection instead when your authorization server issues opaque tokens, when central revocation checks are required on every request, or when your provider requires resource servers to call introspection.
+Use introspection instead when your authorization server issues opaque tokens, when central revocation checks are required on every request, or when your provider requires resource servers to call introspection. DeepSec is an exception: it requires the end-user access token to be a signed JWT with `iss` and `sub` claims, even if the toolkit also introspects that JWT.
 
 ### 4.5. Oracle Deep Data Security Support
 
@@ -736,7 +736,7 @@ When DeepSec is enabled, the request flow is:
 
 Required properties:
 
-* `-Ddeepsec.enabled=true`: Enables DeepSec context propagation.
+* `-Ddeepsec.enabled=true`: Enables DeepSec context propagation. The end-user access token must be a signed JWT containing `iss` and `sub`; opaque tokens are rejected.
 * `-Ddeepsec.tokenEndpoint`: OAuth2 token endpoint used to obtain the database-scoped DeepSec token.
 * `-Ddeepsec.clientId`: Client ID used to obtain the database-scoped DeepSec token.
 * `-Ddeepsec.clientSecret`: Client secret used to obtain the database-scoped DeepSec token.
@@ -750,13 +750,13 @@ Optional properties:
 * `-Ddb.transactionMaxLifetimeSeconds`: Absolute maximum lifetime for a transaction that spans tool calls (default: `300`).
 * `-Ddb.maxTransactionsPerUser`: Maximum concurrent open transactions for one authenticated user (default: `4`).
 
-Transactions that span MCP tool calls are bound to a non-reversible owner identifier derived from
-the validated token's `iss` and `sub` claims. Every query, resume, commit, and rollback verifies the
-same owner before touching the connection. Calls using one transaction are serialized because a
-JDBC connection cannot be used concurrently. Expired transactions are automatically rolled back
-and returned to the connection pool. A refreshed JWT can resume a transaction when its issuer and
-subject remain unchanged; opaque tokens without stable subject claims remain bound to the exact
-token and therefore require a new transaction after token rotation.
+DeepSec requires a signed JWT end-user access token containing `iss` and `sub` claims. Transactions
+that span MCP tool calls are bound to a non-reversible owner identifier derived from those claims.
+Every query, resume, commit, and rollback verifies the same owner before touching the connection.
+Calls using one transaction are serialized because a JDBC connection cannot be used concurrently.
+Expired transactions are automatically rolled back and returned to the connection pool. A refreshed
+JWT can resume a transaction when its issuer and subject remain unchanged. Opaque access tokens are
+rejected when DeepSec is enabled because Oracle Database must validate the token and read its claims.
 
 In group-based DeepSec setups, leave `deepsec.dataRoles` unset and let the database activate data roles from group claims in the end-user token. For example, an OCI IAM access-token claim such as:
 

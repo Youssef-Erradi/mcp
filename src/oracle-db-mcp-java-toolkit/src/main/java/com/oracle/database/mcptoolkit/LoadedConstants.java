@@ -57,6 +57,21 @@ public final class LoadedConstants {
   public static final long AUTH_JWKS_CACHE_SECONDS =
           Long.parseLong(System.getProperty("auth.jwksCacheSeconds", "600"));
 
+  /** MCP OAuth discovery config */
+  public static final String MCP_AUTHORIZATION_SERVER =
+          System.getProperty("mcp.auth.authorizationServer", AUTH_SERVER);
+  public static final String MCP_SCOPES = System.getProperty("mcp.scopes", "openid");
+  public static final String MCP_RESOURCE_URL = System.getProperty("mcp.resourceUrl");
+
+  /** Deep Data Security config */
+  public static final boolean DEEPSEC_ENABLED = Boolean.parseBoolean(System.getProperty("deepsec.enabled", "false"));
+  public static final String DEEPSEC_DATABASE_ACCESS_TOKEN = System.getProperty("deepsec.databaseAccessToken");
+  public static final String DEEPSEC_TOKEN_ENDPOINT = System.getProperty("deepsec.tokenEndpoint");
+  public static final String DEEPSEC_CLIENT_ID = System.getProperty("deepsec.clientId");
+  public static final String DEEPSEC_CLIENT_SECRET = System.getProperty("deepsec.clientSecret");
+  public static final String DEEPSEC_SCOPE = System.getProperty("deepsec.scope");
+  public static final String DEEPSEC_DATA_ROLES = System.getProperty("deepsec.dataRoles");
+
   /** Yaml config */
   public static final String CONFIG_FILE = System.getProperty("configFile");
 

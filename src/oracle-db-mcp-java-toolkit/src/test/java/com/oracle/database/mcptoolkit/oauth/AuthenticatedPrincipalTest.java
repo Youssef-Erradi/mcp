@@ -15,6 +15,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuthenticatedPrincipalTest {
@@ -46,6 +47,20 @@ class AuthenticatedPrincipalTest {
 
     assertEquals(principal, EndUserSecurityContextHolder.getAuthenticatedPrincipal());
     assertNull(new EndUserSecurityContextHolder().getEndUserSecurityContext(null));
+  }
+
+  @Test
+  void requiresJwtIssuerAndSubjectForDeepSec() {
+    assertThrows(IllegalArgumentException.class,
+            () -> AuthenticatedPrincipal.fromValidatedDeepSecJwt("opaque-token"));
+    assertThrows(IllegalArgumentException.class,
+            () -> AuthenticatedPrincipal.fromValidatedDeepSecJwt(jwt("{\"iss\":\"https://identity.example\"}")));
+
+    AuthenticatedPrincipal principal = AuthenticatedPrincipal.fromValidatedDeepSecJwt(jwt(
+            "{\"iss\":\"https://identity.example\",\"sub\":\"alice\","
+                    + "\"groups\":[\"CustomerReaders\"]}"));
+    assertEquals("alice", principal.subject());
+    assertEquals(List.of("CustomerReaders"), principal.groups());
   }
 
   @Test
