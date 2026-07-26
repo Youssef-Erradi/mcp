@@ -9,26 +9,30 @@ package com.oracle.database.mcptoolkit.oauth;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.source.DefaultJWKSetCache;
+import com.nimbusds.jose.jwk.source.RemoteJWKSet;
+import com.nimbusds.jose.proc.BadJOSEException;
+import com.nimbusds.jose.proc.JWSVerificationKeySelector;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.proc.DefaultJWTClaimsVerifier;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 import com.oracle.database.mcptoolkit.LoadedConstants;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.net.URI;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
-import java.security.GeneralSecurityException;
-import java.security.KeyFactory;
-import java.security.PublicKey;
-import java.security.Signature;
-import java.security.interfaces.RSAPublicKey;
-import java.security.spec.RSAPublicKeySpec;
-import java.time.Instant;
+import java.text.ParseException;
 import java.util.Base64;
-import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -37,8 +41,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 /**
  * The OAuth2TokenValidator class is responsible for validating OAuth2 access tokens.
  * It checks if the provided access token is valid by either using a local TokenGenerator
- * if OAuth2 is not configured, or by performing token introspection against an OAuth2
- * authorization server if OAuth2 is properly configured.
+ * if OAuth2 is not configured, validating a JWT against the authorization server's JWKS,
+ * or performing token introspection against an OAuth2 authorization server.
  * <p>
  * This class relies on the OAuth2Configuration singleton to retrieve necessary settings
  * such as the introspection endpoint, client credentials, and configuration flags.
@@ -48,16 +52,15 @@ public class OAuth2TokenValidator {
   private static final OAuth2Configuration OAUTH_CONFIG = OAuth2Configuration.getInstance();
   private static final Logger LOG = Logger.getLogger(OAuth2TokenValidator.class.getName());
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static volatile JwksCache jwksCache;
+  private static volatile JwtProcessorCache jwtProcessorCache;
 
   /**
    * Validates the given access token.
    * <p>
    * If OAuth2 is not configured (as determined by OAuth2Configuration), this method
    * delegates validation to the TokenGenerator instance for local verification.
-   * Otherwise, it performs an HTTP POST request to the OAuth2 introspection endpoint
-   * using the configured client credentials. The response is parsed as JSON, and the
-   * "active" field is checked to determine token validity.
+   * Otherwise, the configured validation mode determines whether the token is verified
+   * locally against the configured JWKS or introspected with the OAuth2 authorization server.
    * </p>
    *
    * @param accessToken the OAuth2 access token to validate; must not be null or blank
@@ -128,59 +131,10 @@ public class OAuth2TokenValidator {
   private boolean isJwtTokenValid(final String accessToken) {
     try {
       requireJwtConfig();
-
-      String[] parts = accessToken.split("\\.");
-      if (parts.length != 3) {
-        LOG.log(Level.WARNING, "JWT validation failed: token does not have three parts");
-        return false;
-      }
-
-      JsonNode header = readJwtPart(parts[0]);
-      JsonNode claims = readJwtPart(parts[1]);
-
-      String algorithm = textClaim(header, "alg");
-      if (!"RS256".equals(algorithm)) {
-        LOG.log(Level.WARNING, () -> "JWT validation failed: unsupported alg " + algorithm);
-        return false;
-      }
-
-      String keyId = textClaim(header, "kid");
-      RSAPublicKey publicKey = getSigningKey(keyId);
-      if (publicKey == null) {
-        LOG.log(Level.WARNING, () -> "JWT validation failed: no JWKS key found for kid " + keyId);
-        return false;
-      }
-
-      if (!verifySignature(parts[0] + "." + parts[1], parts[2], publicKey)) {
-        LOG.log(Level.WARNING, "JWT validation failed: invalid signature");
-        return false;
-      }
-
-      if (!Objects.equals(LoadedConstants.AUTH_ISSUER, textClaim(claims, "iss"))) {
-        LOG.log(Level.WARNING, "JWT validation failed: issuer mismatch");
-        return false;
-      }
-
-      if (!hasAudience(claims.get("aud"), LoadedConstants.AUTH_AUDIENCE)) {
-        LOG.log(Level.WARNING, "JWT validation failed: audience mismatch");
-        return false;
-      }
-
-      long now = Instant.now().getEpochSecond();
-      JsonNode exp = claims.get("exp");
-      if (exp == null || !exp.canConvertToLong() || exp.asLong() <= now) {
-        LOG.log(Level.WARNING, "JWT validation failed: token expired or missing exp");
-        return false;
-      }
-
-      JsonNode nbf = claims.get("nbf");
-      if (nbf != null && nbf.canConvertToLong() && nbf.asLong() > now) {
-        LOG.log(Level.WARNING, "JWT validation failed: token not active yet");
-        return false;
-      }
-
+      jwtProcessor().process(accessToken, null);
       return true;
-    } catch (IOException | GeneralSecurityException | IllegalArgumentException e) {
+    } catch (IOException | ParseException | BadJOSEException | com.nimbusds.jose.JOSEException
+             | IllegalArgumentException e) {
       LOG.log(Level.WARNING, "JWT validation failed: " + e.getMessage(), e);
       return false;
     }
@@ -195,111 +149,58 @@ public class OAuth2TokenValidator {
       throw new IllegalArgumentException("auth.audience is required for JWT validation");
   }
 
-  private JsonNode readJwtPart(String encodedPart) throws IOException {
-    return MAPPER.readTree(Base64.getUrlDecoder().decode(encodedPart));
-  }
-
-  private RSAPublicKey getSigningKey(String keyId) throws IOException, GeneralSecurityException {
-    JsonNode keys = getJwks().get("keys");
-    if (keys == null || !keys.isArray()) {
-      throw new IOException("JWKS response does not contain keys array");
-    }
-
-    for (JsonNode key : keys) {
-      if (!"RSA".equals(textClaim(key, "kty"))) {
-        continue;
-      }
-      String jwkKeyId = textClaim(key, "kid");
-      if (keyId != null && !keyId.equals(jwkKeyId)) {
-        continue;
-      }
-      JsonNode modulus = key.get("n");
-      JsonNode exponent = key.get("e");
-      if (modulus == null || exponent == null) {
-        continue;
-      }
-      return toRsaPublicKey(modulus.asText(), exponent.asText());
-    }
-    return null;
-  }
-
-  private JsonNode getJwks() throws IOException {
-    JwksCache cache = jwksCache;
-    long now = Instant.now().getEpochSecond();
-    if (cache != null && cache.expiresAtEpochSecond() > now) {
-      return cache.jwks();
+  private DefaultJWTProcessor<SecurityContext> jwtProcessor() throws IOException {
+    JwtProcessorCache cache = jwtProcessorCache;
+    if (cache != null && cache.matchesCurrentConfiguration()) {
+      return cache.processor();
     }
 
     synchronized (OAuth2TokenValidator.class) {
-      cache = jwksCache;
-      now = Instant.now().getEpochSecond();
-      if (cache != null && cache.expiresAtEpochSecond() > now) {
-        return cache.jwks();
+      cache = jwtProcessorCache;
+      if (cache != null && cache.matchesCurrentConfiguration()) {
+        return cache.processor();
       }
 
-      try {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(LoadedConstants.AUTH_JWKS_URI))
-                .header("Accept", "application/json")
-                .GET()
-                .build();
-        HttpResponse<String> response = HttpClient.newHttpClient().send(request, BodyHandlers.ofString());
-        if (response.statusCode() != HttpServletResponse.SC_OK) {
-          throw new IOException("JWKS request failed with HTTP " + response.statusCode() + ": " + response.body());
-        }
-        JsonNode jwks = MAPPER.readTree(response.body());
-        long cacheSeconds = Math.max(LoadedConstants.AUTH_JWKS_CACHE_SECONDS, 1);
-        jwksCache = new JwksCache(jwks, Instant.now().getEpochSecond() + cacheSeconds);
-        return jwks;
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new IOException("Interrupted while fetching JWKS", e);
-      }
-    }
-  }
+      long cacheSeconds = Math.max(LoadedConstants.AUTH_JWKS_CACHE_SECONDS, 1);
+      RemoteJWKSet<SecurityContext> jwkSource = new RemoteJWKSet<>(
+              new URL(LoadedConstants.AUTH_JWKS_URI),
+              null,
+              new DefaultJWKSetCache(cacheSeconds, cacheSeconds, TimeUnit.SECONDS));
+      DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
+      processor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, jwkSource));
 
-  private RSAPublicKey toRsaPublicKey(String encodedModulus, String encodedExponent)
-          throws GeneralSecurityException {
-    BigInteger modulus = new BigInteger(1, Base64.getUrlDecoder().decode(encodedModulus));
-    BigInteger exponent = new BigInteger(1, Base64.getUrlDecoder().decode(encodedExponent));
-    PublicKey publicKey = KeyFactory.getInstance("RSA")
-            .generatePublic(new RSAPublicKeySpec(modulus, exponent));
-    return (RSAPublicKey) publicKey;
-  }
-
-  private boolean verifySignature(String signingInput, String encodedSignature, RSAPublicKey publicKey)
-          throws GeneralSecurityException {
-    Signature signature = Signature.getInstance("SHA256withRSA");
-    signature.initVerify(publicKey);
-    signature.update(signingInput.getBytes(UTF_8));
-    return signature.verify(Base64.getUrlDecoder().decode(encodedSignature));
-  }
-
-  private boolean hasAudience(JsonNode audienceClaim, String expectedAudience) {
-    if (audienceClaim == null) {
-      return false;
+      DefaultJWTClaimsVerifier<SecurityContext> claimsVerifier = new DefaultJWTClaimsVerifier<>(
+              Set.of(LoadedConstants.AUTH_AUDIENCE),
+              new JWTClaimsSet.Builder().issuer(LoadedConstants.AUTH_ISSUER).build(),
+              Set.of("iss", "aud", "exp"),
+              Set.of());
+      claimsVerifier.setMaxClockSkew(0);
+      processor.setJWTClaimsSetVerifier(claimsVerifier);
+      jwtProcessorCache = new JwtProcessorCache(
+              processor,
+              LoadedConstants.AUTH_ISSUER,
+              LoadedConstants.AUTH_JWKS_URI,
+              LoadedConstants.AUTH_AUDIENCE,
+              cacheSeconds);
+      return processor;
     }
-    if (audienceClaim.isTextual()) {
-      return expectedAudience.equals(audienceClaim.asText());
-    }
-    if (audienceClaim.isArray()) {
-      for (JsonNode audience : audienceClaim) {
-        if (expectedAudience.equals(audience.asText())) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  private String textClaim(JsonNode node, String field) {
-    JsonNode value = node == null ? null : node.get(field);
-    return value == null || value.isNull() ? null : value.asText();
   }
 
   private boolean isBlank(String value) {
     return value == null || value.isBlank();
   }
 
-  private record JwksCache(JsonNode jwks, long expiresAtEpochSecond) {}
+  private record JwtProcessorCache(
+          DefaultJWTProcessor<SecurityContext> processor,
+          String issuer,
+          String jwksUri,
+          String audience,
+          long cacheSeconds) {
+    private boolean matchesCurrentConfiguration() {
+      return issuer.equals(LoadedConstants.AUTH_ISSUER)
+              && jwksUri.equals(LoadedConstants.AUTH_JWKS_URI)
+              && audience.equals(LoadedConstants.AUTH_AUDIENCE)
+              && cacheSeconds == Math.max(LoadedConstants.AUTH_JWKS_CACHE_SECONDS, 1);
+    }
+  }
 }
