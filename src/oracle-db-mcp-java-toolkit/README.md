@@ -168,9 +168,9 @@ The server provides four built-in toolsets that can be enabled via `-Dtools`:
   <tbody>
     <tr>
       <td><code>mcp-admin</code></td>
-      <td>Protected administrative tools</td>
+      <td>Server discovery and runtime configuration</td>
       <td>
-        edit-tools, list-credentials
+        list-tools, edit-tools
       </td>
     </tr>
     <tr>
@@ -198,7 +198,7 @@ The server provides four built-in toolsets that can be enabled via `-Dtools`:
   </tbody>
 </table>
 
-_Note: `list-tools` is a standalone discovery tool. Enabling a toolset enables all tools listed for that toolset._
+_Note: Each tool belongs to exactly one built-in toolset. Enabling a toolset enables all tools listed for that toolset._
 
 **Common Configurations:**
 - `-Dtools=mcp-admin` - Admin and runtime configuration tools
@@ -206,7 +206,7 @@ _Note: `list-tools` is a standalone discovery tool. Enabling a toolset enables a
 - `-Dtools=database-operator` - Database operations and SQL execution
 - `-Dtools=rag` – Vector store management, document embedding, and semantic similarity search
 - `-Dtools=mcp-admin,log-analyzer` - Admin + log analysis
-- `-Dtools=*` - All non-protected tools (default if omitted). Protected admin tools require `-Dtools=mcp-admin` or the individual tool name.
+- `-Dtools=*` - All tools (default if omitted)
 
 ### 3.1. Database Operations
 These tools provide direct SQL execution capabilities:
@@ -282,7 +282,7 @@ These tools provide a full RAG pipeline: model management, vector store creation
 
 * **`vector-store`**: Create and list vector store tables.
 
-  - `action=create` — create a new table ready for vector search. Every table gets an `ID` primary key and a `CREATED_AT` timestamp automatically. When metadata is enabled (default), a `METADATA` JSON column and two indexes are created: one on `source_uri` for deduplication and one on `task_id` for cancellation cleanup.
+  - `action=create` — create a new table ready for vector search. Every table gets an `ID` primary key and a `CREATED_AT` timestamp automatically. When metadata is enabled (default), a `METADATA` JSON column and a source URI index are also created for deduplication.
   - `action=list` — list all tables in the current schema that have at least one VECTOR column.
 
   **Inputs:**
@@ -309,13 +309,11 @@ These tools provide a full RAG pipeline: model management, vector store creation
 
   **Actions:**
 
-  - `action=file` — embed a single local file (PDF, Word, Excel, PowerPoint, plain text, and other formats supported by Oracle’s `UTL_TO_TEXT`).
+  - `action=file` — embed a single local file (PDF, Word, plain text, and other formats supported by Oracle’s `UTL_TO_TEXT`).
     * `filePath` (string, required) — absolute path to the file
 
   - `action=files` — embed multiple local files in a single background job.
-    * `filePaths` (array, required) — list of absolute file paths; at most 100 files per request
-
-  Local file ingestion requires `-DingestRootDir=/path/to/ingest/root`. Each requested file path is resolved to its real filesystem path and must stay inside that root. Ingested files must be no larger than `ingestMaxFileSizeMb`, whose value is in MB (default: `50`).
+    * `filePaths` (array, required) — list of absolute file paths
 
   - `action=table` — embed text from an existing Oracle table into a vector store.
     * `sourceTable` (string, required) — table containing the source text
@@ -329,15 +327,12 @@ These tools provide a full RAG pipeline: model management, vector store creation
     * Or provide `region` + `namespace` + `bucketName` + `objectName` individually
     * `credentialName` (string, optional) — DBMS_CLOUD credential name; omit for public objects
 
-  - `action=bucket` — embed files in an OCI bucket.
+  - `action=bucket` — embed all files in an OCI bucket.
     * `bucketUrl` (string) — direct OCI bucket URL or PAR URL
     * Or provide `region` + `namespace` + `bucketName` individually
     * `credentialName` (string, optional) — DBMS_CLOUD credential name; omit for public buckets
     * `prefix` (string, optional) — filter objects by path prefix (e.g. `docs/`)
-    * `allowedExtensions` (array, optional) — only embed files with these extensions (e.g. `["pdf", "txt"]`); omit to skip extension filtering
-    * `maxObjects` (number or string, optional) — maximum bucket objects to embed. Default is `100`; values above `10000` process at most `10000`.
-
-    Bucket ingestion skips objects larger than `ingestMaxFileSizeMb` (default: `50` MB) before embedding them.
+    * `allowedExtensions` (array, optional) — only embed files with these extensions (e.g. `["pdf", "txt"]`); omit to process all files
 
   **Returns:** `{ taskId, status: "PENDING", table, ... }` — use the `task` tool to check progress.
 
@@ -346,14 +341,12 @@ These tools provide a full RAG pipeline: model management, vector store creation
   **Metadata written per chunk** (when target table has a METADATA column):
 
   For `action=file`, `files`, `object`, `bucket`:
-  * `task_id` — ID of the embedding task that inserted this chunk (used for cancellation cleanup)
   * `document_id` — UUID shared by all chunks of the same document
   * `source_uri` — file path (`file:///...`) or OCI URL of the source document
   * `chunk_index` — 0-based position of the chunk within the document
   * `total_chunks` — total number of chunks for this document
 
   For `action=table`:
-  * `task_id` — ID of the embedding task that inserted this chunk (used for cancellation cleanup)
   * `source_table` — name of the source table
   * `source_id` — value of the `sourceIdColumn` for the originating row
   * `chunk_index` — 0-based position of the chunk within that row's text
@@ -363,48 +356,34 @@ These tools provide a full RAG pipeline: model management, vector store creation
 
 ---
 
-* **`task`**: Monitor and control background embedding jobs.
+* **`task`**: Monitor background embedding jobs.
 
   - `action=status` — get the current status and per-file results for a specific task.
-  - `action=list` — list tasks submitted since the server started, newest first, with optional pagination (in-memory only, cleared on restart).
-  - `action=cancel` — request cancellation of a PENDING or RUNNING task.
-
-    Embedding task metadata is retained in memory for up to 72 hours after completion, failure, or cancellation. The server keeps at most 10000 task records; if the task store is full, new embedding submissions are rejected until older terminal task records expire.
+  - `action=list` — list all tasks submitted since the server started (in-memory only, cleared on restart).
 
   **Inputs:**
 
-  * `action` (string, required) — `status`, `list`, or `cancel`
-  * `taskId` (string, required for `status` and `cancel`) — task ID returned by the `embed` tool
-  * `limit` (integer, optional for `list`) — maximum tasks to return. Default is `100`; values above `1000` return at most `1000`.
-  * `offset` (integer, optional for `list`) — number of newest tasks to skip. Default is `0`.
+  * `action` (string, required) — `status` or `list`
+  * `taskId` (string, required for `status`) — task ID returned by the `embed` tool
 
-  **Returns:** `status` and `cancel` return `{ taskId, status, table, totalChunksCreated, submittedAt, completedAt, results }` where `status` is one of `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, or `CANCELLED`. `list` returns `{ totalTasks, limit, offset, returned, hasMore, tasks }`. The `results` array contains per-file/source entries and may include cleanup or cancellation entries for cancelled tasks.
-
-  **Cancellation policy:**
-
-  Cancelling a task is best-effort for work that is already running:
-
-  - **Local-file jobs** (`action=file`, `action=files`): the cancel flag is checked between files, and the active insert statement is cancelled when possible. If the target vector store has a `METADATA` column, rows stamped with the task ID are removed before the task is marked `CANCELLED`.
-  - **Single-SQL jobs** (`action=object`, `action=bucket`, `action=table`): JDBC `PreparedStatement.cancel()` asks Oracle to stop the active statement. If the statement is stopped before completion, no rows from that statement are committed. If the statement completes before cancellation takes effect, the task may finish as `COMPLETED`.
-  - **PENDING tasks** (still in the queue) are cancelled before they start — nothing is written to the database.
-  - Calling `cancel` on a task already in a terminal state (`COMPLETED`, `FAILED`, or `CANCELLED`) returns an error.
+  **Returns:** `{ taskId, status, table, totalChunksCreated, submittedAt, completedAt, results }` where `status` is one of `PENDING`, `RUNNING`, `COMPLETED`, or `FAILED`. The `results` array contains one entry per file or source table with `status: "success"`, `"skipped"`, or `"error"`.
 
 ---
 
-* **`oci-storage`**: Browse OCI Object Storage buckets.
+* **`oci-storage`**: Browse OCI Object Storage buckets and list database credentials.
 
-  - `action=list-objects` — list objects in a bucket. Provide `bucketUrl` (direct or PAR URL), or `region` + `namespace` + `bucketName`. Returns 100 objects by default, and at most 10000. Use `prefix` to narrow results or check for a specific object.
+  - `action=list-objects` — list all objects in a bucket. Provide `bucketUrl` (direct or PAR URL), or `region` + `namespace` + `bucketName`.
+  - `action=list-credentials` — list all DBMS_CLOUD credentials available in the current schema.
 
   **Inputs:**
 
-  * `action` (string, required) — `list-objects`
+  * `action` (string, required) — `list-objects` or `list-credentials`
   * `bucketUrl` (string) — direct OCI bucket URL or PAR URL (alternative to region/namespace/bucketName)
   * `region`, `namespace`, `bucketName` (string) — required for `list-objects` when `bucketUrl` is not provided
   * `credentialName` (string, optional) — DBMS_CLOUD credential; omit for public buckets
   * `prefix` (string, optional) — filter objects by path prefix
-  * `maxResults` (number or string, optional) — maximum objects to return. Default is `100`; values above `10000` return at most `10000`.
 
-  **Returns:** `{ bucketUri, prefix, maxResults, truncated, totalObjects, objects: [{ name, sizeBytes, lastModified }] }`.
+  **Returns:** `{ bucketUri, totalObjects, objects: [{ name, sizeBytes, lastModified }] }` for `list-objects`, or `{ totalCredentials, credentials: [{ credentialName, username, enabled }] }` for `list-credentials`.
 
 ---
 
@@ -452,24 +431,15 @@ These tools provide a full RAG pipeline: model management, vector store creation
 ### 3.9. Admin and Runtime Configuration Tools
 
 These tools help you discover what's enabled and manage YAML-defined tools at runtime.
-`list-tools` is a standalone discovery tool. Protected administrative tools are part of the `mcp-admin` toolset (enable via `-Dtools=mcp-admin` or include individual tool names).
-The `mcp-admin` toolset is not included by default, `-Dtools=*`, or `-Dtools=all`; enable it explicitly with `-Dtools=mcp-admin`.
+They are part of the `mcp-admin` toolset (enable via `-Dtools=mcp-admin` or include individual tool names).
 
-_Note: The `mcp-admin` toolset is focused on protected runtime configuration and administrative inventory._
+_Note: The `mcp-admin` toolset is focused on server discovery and runtime configuration only._
 
 #### MCP Admin Tools:
 
 - `list-tools`: List all available tools with their descriptions.
   - Inputs: none
   - Returns: `tools` array with `{ name, title, description }` for built-ins (honoring `-Dtools` filter) and any YAML-defined tools.
-
-- `list-credentials`: List DBMS_CLOUD credentials available in the current schema.
-  - Inputs: none
-  - Returns: `{ totalCredentials, credentials: [{ credentialName, username, enabled }] }`
-  - Requirements and behavior:
-    - Must be explicitly enabled with `-Dtools=list-credentials` or `-Dtools=mcp-admin`.
-    - When HTTP authentication is enabled, requires OAuth scope `mcp:credentials:read` or `mcp:admin`.
-    - To allow any authenticated caller to use `list-credentials` without scope enforcement, set `-DlistCredentials.requireScope=false`.
 
 - `edit-tools`: Create, update, or remove a YAML-defined tool. Changes are auto-reloaded by the server.
   - Inputs (subset; see schema in code):
@@ -481,27 +451,8 @@ _Note: The `mcp-admin` toolset is focused on protected runtime configuration and
     - `statement` (string, optional): SQL (SELECT or DML)
     - `parameters` (array, optional): Items of `{ name, type, description, required }`
   - Requirements and behavior:
-    - Must be explicitly enabled with `-Dtools=edit-tools` or `-Dtools=mcp-admin`.
     - Requires `-DconfigFile` to be set to a writable YAML file; otherwise the tool will return an error.
-    - When HTTP authentication is enabled, requires OAuth scope `mcp:tools:write` or `mcp:admin`.
-    - To allow any authenticated caller to use `edit-tools` without scope enforcement, set `-DeditTools.requireScope=false`.
-    - OAuth scope lookup defaults to the `scope` claim in the introspection response. If your authorization server uses a different claim, configure its dot-separated path with `-Doauth.scopeClaimPath=<claim.path>`.
-    - Tool names must be safe and cannot collide with built-in tools or toolsets.
-    - For `edit-tools` changes, `dataSource` is required, must exist under `dataSources:`, and must be in `admin.editTools.allowedDataSources` when that allowlist is configured.
-    - `edit-tools` allows `SELECT` statements by default; additional statement types must be allowed by `admin.editTools.allowedStatementTypes`.
-    - Parameters must use supported types and match SQL bind placeholders exactly.
     - On upsert/remove, the YAML is written and the server hot-reloads the configuration shortly after.
-
-  Optional policy for changes made through `edit-tools`:
-  ```yaml
-  admin:
-    editTools:
-      enabled: true
-      allowedDataSources: [reporting-db]
-      allowedStatementTypes: [SELECT]
-  ```
-  This policy applies only to YAML changes made through `edit-tools`; it is not an allowlist for hand-edited YAML files.
-  Hand-edited YAML tools are treated as admin-controlled config. Startup and hot reload perform basic structural validation and skip invalid tools, but they do not enforce `admin.editTools.allowedDataSources` or `admin.editTools.allowedStatementTypes`.
 
   Example (upsert a tool):
   ```jsonc
@@ -641,7 +592,7 @@ Claude Desktop accepts HTTPS endpoints for remote MCP servers.
 
 #### 4.4.1. Generated Token (For Development and Testing)
 
-To enable authentication for the HTTP server, you must set the `-DenableAuthentication` system property to `true` (default value is `false`).
+To enable authentication for the HTTP server, set `-Dauth.enabled=true` (default: `false`).
 If it's enabled (e.g. set to `true`) the MCP Server will check if there's an environment variable called `ORACLE_DB_TOOLKIT_AUTH_TOKEN` and its value will be used as a token.
 If the environment variable is not found, then a random UUID token will be generated once per JVM session. The token would be logged at the `INFO` level.
 
@@ -649,31 +600,30 @@ When connecting to the MCP server, the token needs to be provided in the Authori
 
 #### 4.4.2. OAuth2 Configuration
 
-In order to configure an OAuth2 server, the `-DenableAuthentication` should be enabled alongside the following system properties:
+In order to configure an OAuth2 server, enable `-Dauth.enabled=true` alongside the following system properties:
 
-* `-DauthServer`: The OAuth2 server URL which MUST provide the `/.well-known/oauth-authorization-server`. But if the authorization server only provides the `/.well-known/openid-configuration` you can enable `-DredirectOAuthToOpenID`.
-* `-Dmcp.auth.authorizationServer`: Optional authorization server URL advertised in MCP OAuth protected-resource metadata. If omitted, the server uses `authServer`.
-* `-Dmcp.scopes`: Optional space- or comma-separated OAuth scopes advertised to MCP clients for end-user login (default: `openid`).
-* `-Dmcp.resourceUrl`: Optional externally visible MCP resource URL advertised in OAuth protected-resource metadata. Set this when the server is behind a proxy or public route whose URL differs from the incoming servlet request URL.
-* `-DredirectOAuthToOpenID`: (default: `false`) This system property is used to as a workaround to support OAuth servers that provide `/.well-known/openid-configuration` and not `/.well-known/oauth-authorization-server`.
+* `-Dauth.authorizationServer`: The OAuth2 server URL which MUST provide the `/.well-known/oauth-authorization-server`. If it only provides `/.well-known/openid-configuration`, enable `-Dauth.openIdDiscoveryRedirectEnabled=true`.
+* `-Dmcp.oauth.authorizationServer`: Optional authorization server URL advertised in MCP OAuth protected-resource metadata. If omitted, the server uses `auth.authorizationServer`.
+* `-Dmcp.oauth.scopes`: Optional space- or comma-separated OAuth scopes advertised to MCP clients for end-user login (default: `openid`).
+* `-Dmcp.oauth.resourceUrl`: Optional externally visible MCP resource URL advertised in OAuth protected-resource metadata. Set this when the server is behind a proxy or public route whose URL differs from the incoming servlet request URL.
+* `-Dauth.openIdDiscoveryRedirectEnabled`: (default: `false`) Creates an `/.well-known/oauth-authorization-server` endpoint that redirects to the authorization server's `/.well-known/openid-configuration` endpoint.
   It works by creating an `/.well-known/oauth-authorization-server` endpoint on the MCP Server that redirects to the OAuth server's `/.well-known/openid-configuration` endpoint.
-* `-Dauth.validationMode`: Token validation mode. Use `introspection` (default) to validate bearer tokens by calling the OAuth2 introspection endpoint, or `jwt` to validate JWT access tokens locally with JWKS.
-* `-DintrospectionEndpoint`: The OAuth2 server's introspection endpoint used to validate an access token (The OAuth2 introspection JSON response MUST contain the `active` field, e.g. `{...,"active": false,..}`).
+* `-Dauth.userTokenValidation.mode`: Token validation mode. Use `introspection` (default) to validate bearer tokens by calling the OAuth2 introspection endpoint, or `jwt` to validate JWT access tokens locally with JWKS.
+* `-Dauth.userTokenValidation.introspection.endpoint`: The OAuth2 server's introspection endpoint used to validate an access token (The OAuth2 introspection JSON response MUST contain the `active` field, e.g. `{...,"active": false,..}`).
   Which means that whenever the MCP server receives an HTTP request, it sends an HTTP request to the OAuth2 server's introspection endpoint to check the validity of the JWT access token.
-* `-Dauth.issuer`: Required when `auth.validationMode=jwt`. Expected JWT `iss` claim.
-* `-Dauth.jwksUri`: Required when `auth.validationMode=jwt`. JWKS endpoint used to fetch public signing keys.
-* `-Dauth.audience`: Required when `auth.validationMode=jwt`. Expected JWT `aud` claim.
-* `-Dauth.jwksCacheSeconds`: Optional JWKS cache duration in seconds when `auth.validationMode=jwt` (default: `600`).
-* `-DclientId`: Client ID (e.g. `oracle-db-toolkit`)
-* `-DclientSecret`: Client Secret (e.g. `Xj9mPqR2vL5kN8tY3hB7wF4uD6cA1eZ0`)
-* `-Doauth.scopeClaimPath`: (default: `scope`) Dot-separated path in the introspection response that contains OAuth scopes.
-* `-DallowedHosts`: (default: `*`) The value of `Access-Control-Allow-Origin` header when requesting the `/.well-known/oauth-protected-resource` endpoint (and `/.well-known/oauth-authorization-server` if `-DredirectOAuthToOpenID` is set to `true`) of the MCP Server.
+* `-Dauth.userTokenValidation.jwt.issuer`: Required when `auth.userTokenValidation.mode=jwt`. Expected JWT `iss` claim.
+* `-Dauth.userTokenValidation.jwt.jwksUri`: Required when `auth.userTokenValidation.mode=jwt`. JWKS endpoint used to fetch public signing keys.
+* `-Dauth.userTokenValidation.jwt.audience`: Required when `auth.userTokenValidation.mode=jwt`. Expected JWT `aud` claim.
+* `-Dauth.userTokenValidation.jwt.jwksCacheSeconds`: Optional JWKS cache duration in seconds when `auth.userTokenValidation.mode=jwt` (default: `600`).
+* `-Dauth.userTokenValidation.introspection.clientId`: Client ID used for introspection (e.g. `oracle-db-toolkit`).
+* `-Dauth.userTokenValidation.introspection.clientSecret`: Client secret used for introspection.
+* `-DallowedHosts`: (default: `*`) The value of `Access-Control-Allow-Origin` header when requesting the `/.well-known/oauth-protected-resource` endpoint (and `/.well-known/oauth-authorization-server` if `-Dauth.openIdDiscoveryRedirectEnabled=true`) of the MCP Server.
 
 ##### MCP login scopes vs DeepSec database scopes
 
-The OAuth scopes advertised with `-Dmcp.scopes` are for the human MCP user's browser login. For most OpenID Connect providers, this should remain `openid` unless your MCP client registration is explicitly allowed to request additional end-user scopes.
+The OAuth scopes advertised with `-Dmcp.oauth.scopes` are for the human MCP user's browser login. For most OpenID Connect providers, this should remain `openid` unless your MCP client registration is explicitly allowed to request additional end-user scopes.
 
-Do not put database resource scopes such as `OracleDBDB_ACCESS_SCOPE` in `mcp.scopes` unless the user-facing OAuth client is allowed to request that scope interactively. Database access-token scopes used for Deep Data Security are configured separately with `-Ddeepsec.scope`.
+Do not put database resource scopes such as `OracleDBDB_ACCESS_SCOPE` in `mcp.oauth.scopes` unless the user-facing OAuth client is allowed to request that scope interactively. Database access-token scopes used for Deep Data Security are configured separately with `-Ddeepsec.databaseToken.scope`.
 
 For more details regarding this MCP and OAuth, please see [MCP specification for authorization](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) (or a newer version if available).
 
@@ -688,12 +638,12 @@ java \
     -Dhttps.port=45450 \
     -DcertificatePath=/path/to/your-certificate.p12 \
     -DcertificatePassword=yourPassword \
-    -DenableAuthentication=true \
-    -DauthServer=http://localhost:8080/realms/mcp \
-    -Dmcp.scopes=openid \
-    -DintrospectionEndpoint=http://localhost:8080/realms/mcp/protocol/openid-connect/token/introspect \
-    -DclientId=oracle-db-toolkit \
-    -DclientSecret=Xj9mPqR2vL5kN8tY3hB7wF4uD6cA1eZ0 \
+    -Dauth.enabled=true \
+    -Dauth.authorizationServer=http://localhost:8080/realms/mcp \
+    -Dmcp.oauth.scopes=openid \
+    -Dauth.userTokenValidation.introspection.endpoint=http://localhost:8080/realms/mcp/protocol/openid-connect/token/introspect \
+    -Dauth.userTokenValidation.introspection.clientId=oracle-db-toolkit \
+    -Dauth.userTokenValidation.introspection.clientSecret=Xj9mPqR2vL5kN8tY3hB7wF4uD6cA1eZ0 \
     -DallowedHosts=http://localhost:6274 \
     -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
@@ -710,13 +660,13 @@ java \
     -Ddb.url=jdbc:oracle:thin:@host:1521/service \
     -Dtransport=http \
     -Dhttp.port=8080 \
-    -DenableAuthentication=true \
-    -DauthServer=https://identity.example.com \
-    -Dauth.validationMode=jwt \
-    -Dauth.issuer=https://issuer.example.com/ \
-    -Dauth.jwksUri=https://identity.example.com/.well-known/jwks.json \
-    -Dauth.audience=https://identity.example.com \
-    -Dmcp.scopes=openid \
+    -Dauth.enabled=true \
+    -Dauth.authorizationServer=https://identity.example.com \
+    -Dauth.userTokenValidation.mode=jwt \
+    -Dauth.userTokenValidation.jwt.issuer=https://issuer.example.com/ \
+    -Dauth.userTokenValidation.jwt.jwksUri=https://identity.example.com/.well-known/jwks.json \
+    -Dauth.userTokenValidation.jwt.audience=https://identity.example.com \
+    -Dmcp.oauth.scopes=openid \
     -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
 
@@ -737,15 +687,15 @@ When DeepSec is enabled, the request flow is:
 Required properties:
 
 * `-Ddeepsec.enabled=true`: Enables DeepSec context propagation. The end-user access token must be a signed JWT containing `iss` and `sub`; opaque tokens are rejected.
-* `-Ddeepsec.tokenEndpoint`: OAuth2 token endpoint used to obtain the database-scoped DeepSec token.
-* `-Ddeepsec.clientId`: Client ID used to obtain the database-scoped DeepSec token.
-* `-Ddeepsec.clientSecret`: Client secret used to obtain the database-scoped DeepSec token.
-* `-Ddeepsec.scope`: Database resource scope for the DeepSec/database token, for example `OracleDBDB_ACCESS_SCOPE`.
+* `-Ddeepsec.databaseToken.tokenEndpoint`: OAuth2 token endpoint used to obtain the database-scoped DeepSec token.
+* `-Ddeepsec.databaseToken.clientId`: Client ID used to obtain the database-scoped DeepSec token.
+* `-Ddeepsec.databaseToken.clientSecret`: Client secret used to obtain the database-scoped DeepSec token.
+* `-Ddeepsec.databaseToken.scope`: Database resource scope for the DeepSec/database token, for example `OracleDBDB_ACCESS_SCOPE`.
 
 Optional properties:
 
-* `-Ddeepsec.databaseAccessToken`: Static database-scoped token for local smoke tests. Prefer `deepsec.tokenEndpoint` plus client credentials for normal use.
-* `-Ddeepsec.dataRoles`: Comma-separated data roles to request explicitly in the end-user security context.
+* `-Ddeepsec.databaseToken.staticValue`: Static database-scoped token for local smoke tests. Prefer `deepsec.databaseToken.tokenEndpoint` plus client credentials for normal use.
+* `-Ddeepsec.requestedDataRoles`: Comma-separated data roles to request explicitly in the end-user security context.
 * `-Ddb.transactionIdleTimeoutSeconds`: Rolls back an open transaction after this many unused seconds (default: `120`).
 * `-Ddb.transactionMaxLifetimeSeconds`: Absolute maximum lifetime for a transaction that spans tool calls (default: `300`).
 * `-Ddb.maxTransactionsPerUser`: Maximum concurrent open transactions for one authenticated user (default: `4`).
@@ -758,7 +708,7 @@ Expired transactions are automatically rolled back and returned to the connectio
 JWT can resume a transaction when its issuer and subject remain unchanged. Opaque access tokens are
 rejected when DeepSec is enabled because Oracle Database must validate the token and read its claims.
 
-In group-based DeepSec setups, leave `deepsec.dataRoles` unset and let the database activate data roles from group claims in the end-user token. For example, an OCI IAM access-token claim such as:
+In group-based DeepSec setups, leave `deepsec.requestedDataRoles` unset and let the database activate data roles from group claims in the end-user token. For example, an OCI IAM access-token claim such as:
 
 ```json
 {
@@ -773,7 +723,7 @@ CREATE DATA ROLE customer_reader
   MAPPED TO 'IAM_OAUTH_GROUP=CustomerReaders';
 ```
 
-Use `deepsec.dataRoles` only when your database roles are designed for application-controlled activation, such as disabled data roles granted to the application identity. A global `deepsec.dataRoles` value applies to every database operation, so prefer group-based roles or tool-specific role policy for production.
+Use `deepsec.requestedDataRoles` only when your database roles are designed for application-controlled activation, such as disabled data roles granted to the application identity. A global `deepsec.requestedDataRoles` value applies to every database operation, so prefer group-based roles or tool-specific role policy for production.
 
 Example:
 
@@ -784,31 +734,31 @@ java \
     -Ddb.password='your-db-password' \
     -Dtransport=http \
     -Dhttp.port=8080 \
-    -DenableAuthentication=true \
-    -DauthServer=https://idcs.example.com \
-    -Dmcp.scopes=openid \
-    -DintrospectionEndpoint=https://idcs.example.com/oauth2/v1/introspect \
-    -DclientId=mcp-user-login-client-id \
-    -DclientSecret='mcp-user-login-client-secret' \
+    -Dauth.enabled=true \
+    -Dauth.authorizationServer=https://idcs.example.com \
+    -Dmcp.oauth.scopes=openid \
+    -Dauth.userTokenValidation.introspection.endpoint=https://idcs.example.com/oauth2/v1/introspect \
+    -Dauth.userTokenValidation.introspection.clientId=mcp-user-login-client-id \
+    -Dauth.userTokenValidation.introspection.clientSecret='mcp-user-login-client-secret' \
     -Ddeepsec.enabled=true \
-    -Ddeepsec.tokenEndpoint=https://idcs.example.com/oauth2/v1/token \
-    -Ddeepsec.clientId=database-token-client-id \
-    -Ddeepsec.clientSecret='database-token-client-secret' \
-    -Ddeepsec.scope=OracleDBDB_ACCESS_SCOPE \
+    -Ddeepsec.databaseToken.tokenEndpoint=https://idcs.example.com/oauth2/v1/token \
+    -Ddeepsec.databaseToken.clientId=database-token-client-id \
+    -Ddeepsec.databaseToken.clientSecret='database-token-client-secret' \
+    -Ddeepsec.databaseToken.scope=OracleDBDB_ACCESS_SCOPE \
     -DconfigFile=/path/to/config.yaml \
     -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
 
 The user-login scope and the DeepSec database-token scope are intentionally separate:
 
-* `mcp.scopes=openid` is advertised to MCP clients for browser login.
-* `deepsec.scope=OracleDBDB_ACCESS_SCOPE` is used by the MCP server to request the database-scoped token used in the Oracle JDBC end-user security context.
+* `mcp.oauth.scopes=openid` is advertised to MCP clients for browser login.
+* `deepsec.databaseToken.scope=OracleDBDB_ACCESS_SCOPE` is used by the MCP server to request the database-scoped token used in the Oracle JDBC end-user security context.
 
 #### DeepSec integration test
 
 The database-backed test is disabled during normal builds. It starts a localhost OAuth callback listener, opens the OCI browser login, uses Authorization Code with PKCE, and keeps the resulting user token only in memory. It then uses the production OJDBC provider SPI with a one-connection UCP pool and verifies `ORA_END_USER_CONTEXT.username`, mapped roles from `v$end_user_data_role`, and a real Oracle transaction resumed across separate simulated requests. The transaction check creates a savepoint, verifies that `DBMS_TRANSACTION.LOCAL_TRANSACTION_ID` remains stable after resumption, and exercises both commit and rollback through the production transaction registry.
 
-The configured `auth.redirectUri` must be registered on the OCI application and its port must be free while Maven runs. The test consumes the same `db.*`, `deepsec.*`, `authServer`, `clientId`, `clientSecret`, `auth.redirectUri`, `auth.upstreamScopes`, and `mcp.resourceUrl` system properties as the server. Do not run the MCP server on the callback port at the same time.
+The configured `deepsec.it.userLogin.callbackUri` must be registered on the OCI application and its port must be free while Maven runs. The test uses `db.*`, `deepsec.databaseToken.*`, `auth.authorizationServer`, `deepsec.it.userLogin.*`, and `mcp.oauth.resourceUrl`. Do not run the MCP server on the callback port at the same time.
 
 For a one-user smoke test, provide only the expected mapped database roles. The expected username defaults to the access token's `sub` claim and can be overridden with `DEEPSEC_IT_USER_A_USERNAME`:
 
@@ -820,16 +770,16 @@ mvn -Ddb.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
     -Ddb.user=mcp_app_user \
     -Ddb.password='your-db-password' \
     -Dojdbc.ext.dir=/path/to/ojdbc/extensions \
-    -Ddeepsec.tokenEndpoint=https://idcs.example.com/oauth2/v1/token \
-    -Ddeepsec.clientId=database-token-client-id \
-    -Ddeepsec.clientSecret='database-token-client-secret' \
-    -Ddeepsec.scope=OracleDBDB_ACCESS_SCOPE \
-    -DauthServer=https://idcs.example.com \
-    -DclientId=user-login-client-id \
-    -DclientSecret='user-login-client-secret' \
-    -Dauth.redirectUri=http://localhost:8080/auth/callback \
-    -Dauth.upstreamScopes='openid OracleDBDB_ACCESS_SCOPE' \
-    -Dmcp.resourceUrl=http://localhost:8080/mcp \
+    -Ddeepsec.databaseToken.tokenEndpoint=https://idcs.example.com/oauth2/v1/token \
+    -Ddeepsec.databaseToken.clientId=database-token-client-id \
+    -Ddeepsec.databaseToken.clientSecret='database-token-client-secret' \
+    -Ddeepsec.databaseToken.scope=OracleDBDB_ACCESS_SCOPE \
+    -Dauth.authorizationServer=https://idcs.example.com \
+    -Ddeepsec.it.userLogin.clientId=user-login-client-id \
+    -Ddeepsec.it.userLogin.clientSecret='user-login-client-secret' \
+    -Ddeepsec.it.userLogin.callbackUri=http://localhost:8080/auth/callback \
+    -Ddeepsec.it.userLogin.scopes='openid OracleDBDB_ACCESS_SCOPE' \
+    -Dmcp.oauth.resourceUrl=http://localhost:8080/mcp \
     -Dtest=DeepSecIntegrationTest test
 ```
 
@@ -846,7 +796,7 @@ java \
     -Dhttps.port=45450 \
     -DcertificatePath=/path/to/your-certificate.p12 \
     -DcertificatePassword=yourPassword \
-    -DenableAuthentication=true \
+    -Dauth.enabled=true \
     -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
 
@@ -921,13 +871,13 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
         Comma-separated allow-list of tool or toolset names to enable (case-insensitive).<br/>
         You can pass individual tools (e.g. <code>jdbc-analyzer</code>, <code>read-query</code>) or any of the following built-in toolsets:
         <ul>
-          <li><code>mcp-admin</code> — protected runtime configuration and administrative inventory tools (edit-tools, list-credentials)</li>
+          <li><code>mcp-admin</code> — server discovery and runtime configuration tools (list-tools, edit-tools)</li>
           <li><code>database-operator</code> — database operations, transactions, monitoring, and execution plans (read-query, write-query, table, transaction, db-ping, db-metrics-range, explain-plan).</li>
           <li><code>log-analyzer</code> — all JDBC log and RDBMS/SQLNet analysis tools (jdbc-analyzer and rdbms-analyzer)</li>
           <li><code>rag</code> — vector store management, document embedding, and semantic similarity search (vector-model, vector-store, embed, task, oci-storage, similarity-search)</li>
         </ul>
         You can also define your own YAML <code>toolsets:</code> and reference them here.  
-        Use <code>*</code> or <code>all</code> to enable all non-protected tools. If omitted, all non-protected tools are enabled by default.
+        Use <code>*</code> or <code>all</code> to enable everything. If omitted, all tools are enabled by default.
       </td>
       <td><code>mcp-admin, log-analyzer</code> or <code>reporting</code></td>
     </tr>
@@ -939,18 +889,6 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
         Useful for optional components like <code>oraclepki</code> when using TCPS wallets, token authentication, or centralized driver config.
       </td>
       <td><code>/opt/oracle/ext-jars</code></td>
-    </tr>
-    <tr>
-      <td><code>ingestRootDir</code></td>
-      <td>No</td>
-      <td>Root directory for local file ingestion with the <code>embed</code> tool. Required only for <code>action=file</code> and <code>action=files</code>. Requested file paths must resolve inside this directory.</td>
-      <td><code>/opt/mcp/ingest</code></td>
-    </tr>
-    <tr>
-      <td><code>ingestMaxFileSizeMb</code></td>
-      <td>No</td>
-      <td>Maximum file size for <code>embed</code> ingestion from local files and OCI bucket objects. The value is in MB. Default is <code>50</code>.</td>
-      <td><code>50</code></td>
     </tr>
     <tr>
       <td><code>transport</code></td>
@@ -991,53 +929,35 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td>/opt/mcp/config.yaml</td>
     </tr>
     <tr>
-      <td><code>enableAuthentication</code></td>
+      <td><code>auth.enabled</code></td>
       <td>No</td>
       <td>Whether HTTP authentication is required or not (default <code>false</code>).<br/>
       All the subsequent OAuth2 system properties are ignored if this property is set to <code>false</code>.</td>
-      <td><code>-DenableAuthentication=true</code></td>
+      <td><code>-Dauth.enabled=true</code></td>
     </tr>
     <tr>
-      <td><code>authServer</code></td>
+      <td><code>auth.authorizationServer</code></td>
       <td>No</td>
       <td>Configure the OAuth2 server URL</td>
-      <td><code>-DauthServer=http://localhost:8080/realms/master</code></td>
+      <td><code>-Dauth.authorizationServer=http://localhost:8080/realms/master</code></td>
     </tr>
     <tr>
-      <td><code>introspectionEndpoint</code></td>
+      <td><code>auth.userTokenValidation.introspection.endpoint</code></td>
       <td>No</td>
       <td>The OAuth2 server endpoint used to validate and obtain metadata about an access token.</td>
-      <td><code>-DintrospectionEndpoint=http://localhost:8080/realms/mcp/protocol/openid-connect/token/introspect</code></td>
+      <td><code>-Dauth.userTokenValidation.introspection.endpoint=http://localhost:8080/realms/mcp/protocol/openid-connect/token/introspect</code></td>
     </tr>
     <tr>
-      <td><code>clientId</code></td>
+      <td><code>auth.userTokenValidation.introspection.clientId</code></td>
       <td>No</td>
       <td>The client identifier for registering with the configured OAuth2 server.</td>
-      <td><code>-DclientId=oracle-db-toolkit</code></td>
+      <td><code>-Dauth.userTokenValidation.introspection.clientId=oracle-db-toolkit</code></td>
     </tr>
     <tr>
-      <td><code>clientSecret</code></td>
+      <td><code>auth.userTokenValidation.introspection.clientSecret</code></td>
       <td>No</td>
       <td>The confidential key used to authenticate the client to the configured authorization server during the OAuth2 flow.</td>
-      <td><code>-DclientSecret=Xj9mPqR2vL5kN8tY3hB7wF4uD6cA1eZ0</code></td>
-    </tr>
-    <tr>
-      <td><code>oauth.scopeClaimPath</code></td>
-      <td>No</td>
-      <td>Dot-separated path in the OAuth2 introspection response that contains scopes. Defaults to <code>scope</code>.</td>
-      <td><code>-Doauth.scopeClaimPath=scope</code></td>
-    </tr>
-    <tr>
-      <td><code>editTools.requireScope</code></td>
-      <td>No</td>
-      <td>Whether <code>edit-tools</code> requires OAuth scope <code>mcp:tools:write</code> or <code>mcp:admin</code> when HTTP authentication is enabled. Defaults to <code>true</code>. Set to <code>false</code> only when any authenticated caller should be allowed to use <code>edit-tools</code>.</td>
-      <td><code>-DeditTools.requireScope=false</code></td>
-    </tr>
-    <tr>
-      <td><code>listCredentials.requireScope</code></td>
-      <td>No</td>
-      <td>Whether <code>list-credentials</code> requires OAuth scope <code>mcp:credentials:read</code> or <code>mcp:admin</code> when HTTP authentication is enabled. Defaults to <code>true</code>. Set to <code>false</code> only when any authenticated caller should be allowed to list credential metadata.</td>
-      <td><code>-DlistCredentials.requireScope=false</code></td>
+      <td><code>-Dauth.userTokenValidation.introspection.clientSecret=Xj9mPqR2vL5kN8tY3hB7wF4uD6cA1eZ0</code></td>
     </tr>
     <tr>
       <td><code>allowedHosts</code></td>
@@ -1046,58 +966,58 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>-DallowedHosts=http://localhost:6274</code></td>
     </tr>
     <tr>
-      <td><code>redirectOAuthToOpenID</code></td>
+      <td><code>auth.openIdDiscoveryRedirectEnabled</code></td>
       <td>No</td>
       <td>System property that redirects MCP Server's <code>/.well-known/oauth-authorization-server</code> endpoint to the OAuth server's <code>/.well-known/openid-configuration</code> as a workaround for servers lacking the former (default value is <code>false</code>. If OAuth is not properly configured, then this system property is ignored).</td>
-      <td><code>-DredirectOAuthToOpenID=false</code></td>
+      <td><code>-Dauth.openIdDiscoveryRedirectEnabled=false</code></td>
     </tr>
     <tr>
-      <td><code>mcp.auth.authorizationServer</code></td>
+      <td><code>mcp.oauth.authorizationServer</code></td>
       <td>No</td>
-      <td>Authorization server URL advertised to MCP OAuth clients. Defaults to <code>authServer</code>.</td>
-      <td><code>-Dmcp.auth.authorizationServer=https://idcs.example.com</code></td>
+      <td>Authorization server URL advertised to MCP OAuth clients. Defaults to <code>auth.authorizationServer</code>.</td>
+      <td><code>-Dmcp.oauth.authorizationServer=https://idcs.example.com</code></td>
     </tr>
     <tr>
-      <td><code>mcp.scopes</code></td>
+      <td><code>mcp.oauth.scopes</code></td>
       <td>No</td>
       <td>Space- or comma-separated scopes advertised to MCP clients for end-user login. Keep this separate from DeepSec/database scopes. Defaults to <code>openid</code>.</td>
-      <td><code>-Dmcp.scopes=openid</code></td>
+      <td><code>-Dmcp.oauth.scopes=openid</code></td>
     </tr>
     <tr>
-      <td><code>mcp.resourceUrl</code></td>
+      <td><code>mcp.oauth.resourceUrl</code></td>
       <td>No</td>
       <td>Externally visible MCP endpoint URL advertised in OAuth protected-resource metadata. Useful behind proxies or public routes.</td>
-      <td><code>-Dmcp.resourceUrl=https://example.com/api/mcp</code></td>
+      <td><code>-Dmcp.oauth.resourceUrl=https://example.com/api/mcp</code></td>
     </tr>
     <tr>
-      <td><code>auth.validationMode</code></td>
+      <td><code>auth.userTokenValidation.mode</code></td>
       <td>No</td>
       <td>Bearer token validation mode: <code>introspection</code> (default) or <code>jwt</code>.</td>
-      <td><code>-Dauth.validationMode=jwt</code></td>
+      <td><code>-Dauth.userTokenValidation.mode=jwt</code></td>
     </tr>
     <tr>
-      <td><code>auth.issuer</code></td>
+      <td><code>auth.userTokenValidation.jwt.issuer</code></td>
       <td>No</td>
-      <td>Expected JWT issuer. Required when <code>auth.validationMode=jwt</code>.</td>
-      <td><code>-Dauth.issuer=https://identity.example.com/</code></td>
+      <td>Expected JWT issuer. Required when <code>auth.userTokenValidation.mode=jwt</code>.</td>
+      <td><code>-Dauth.userTokenValidation.jwt.issuer=https://identity.example.com/</code></td>
     </tr>
     <tr>
-      <td><code>auth.jwksUri</code></td>
+      <td><code>auth.userTokenValidation.jwt.jwksUri</code></td>
       <td>No</td>
-      <td>JWKS endpoint used to fetch token-signing public keys. Required when <code>auth.validationMode=jwt</code>.</td>
-      <td><code>-Dauth.jwksUri=https://identity.example.com/.well-known/jwks.json</code></td>
+      <td>JWKS endpoint used to fetch token-signing public keys. Required when <code>auth.userTokenValidation.mode=jwt</code>.</td>
+      <td><code>-Dauth.userTokenValidation.jwt.jwksUri=https://identity.example.com/.well-known/jwks.json</code></td>
     </tr>
     <tr>
-      <td><code>auth.audience</code></td>
+      <td><code>auth.userTokenValidation.jwt.audience</code></td>
       <td>No</td>
-      <td>Expected JWT audience. Required when <code>auth.validationMode=jwt</code>.</td>
-      <td><code>-Dauth.audience=https://identity.example.com</code></td>
+      <td>Expected JWT audience. Required when <code>auth.userTokenValidation.mode=jwt</code>.</td>
+      <td><code>-Dauth.userTokenValidation.jwt.audience=https://identity.example.com</code></td>
     </tr>
     <tr>
-      <td><code>auth.jwksCacheSeconds</code></td>
+      <td><code>auth.userTokenValidation.jwt.jwksCacheSeconds</code></td>
       <td>No</td>
-      <td>JWKS cache duration in seconds when <code>auth.validationMode=jwt</code>. Defaults to <code>600</code>.</td>
-      <td><code>-Dauth.jwksCacheSeconds=600</code></td>
+      <td>JWKS cache duration in seconds when <code>auth.userTokenValidation.mode=jwt</code>. Defaults to <code>600</code>.</td>
+      <td><code>-Dauth.userTokenValidation.jwt.jwksCacheSeconds=600</code></td>
     </tr>
     <tr>
       <td><code>deepsec.enabled</code></td>
@@ -1106,40 +1026,40 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>-Ddeepsec.enabled=true</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.tokenEndpoint</code></td>
+      <td><code>deepsec.databaseToken.tokenEndpoint</code></td>
       <td>No</td>
       <td>OAuth2 token endpoint used to obtain the database-scoped token for DeepSec.</td>
-      <td><code>-Ddeepsec.tokenEndpoint=https://idcs.example.com/oauth2/v1/token</code></td>
+      <td><code>-Ddeepsec.databaseToken.tokenEndpoint=https://idcs.example.com/oauth2/v1/token</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.clientId</code></td>
+      <td><code>deepsec.databaseToken.clientId</code></td>
       <td>No</td>
       <td>Client ID used by the MCP server to obtain the database-scoped DeepSec token.</td>
-      <td><code>-Ddeepsec.clientId=database-token-client-id</code></td>
+      <td><code>-Ddeepsec.databaseToken.clientId=database-token-client-id</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.clientSecret</code></td>
+      <td><code>deepsec.databaseToken.clientSecret</code></td>
       <td>No</td>
       <td>Client secret used by the MCP server to obtain the database-scoped DeepSec token.</td>
-      <td><code>-Ddeepsec.clientSecret=database-token-client-secret</code></td>
+      <td><code>-Ddeepsec.databaseToken.clientSecret=database-token-client-secret</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.scope</code></td>
+      <td><code>deepsec.databaseToken.scope</code></td>
       <td>No</td>
-      <td>Database resource scope used only for the DeepSec/database token. Do not confuse this with <code>mcp.scopes</code>.</td>
-      <td><code>-Ddeepsec.scope=OracleDBDB_ACCESS_SCOPE</code></td>
+      <td>Database resource scope used only for the DeepSec/database token. Do not confuse this with <code>mcp.oauth.scopes</code>.</td>
+      <td><code>-Ddeepsec.databaseToken.scope=OracleDBDB_ACCESS_SCOPE</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.databaseAccessToken</code></td>
+      <td><code>deepsec.databaseToken.staticValue</code></td>
       <td>No</td>
-      <td>Static database-scoped token for local smoke tests. Prefer <code>deepsec.tokenEndpoint</code> plus client credentials for normal use.</td>
-      <td><code>-Ddeepsec.databaseAccessToken=...</code></td>
+      <td>Static database-scoped token for local smoke tests. Prefer <code>deepsec.databaseToken.tokenEndpoint</code> plus client credentials for normal use.</td>
+      <td><code>-Ddeepsec.databaseToken.staticValue=...</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.dataRoles</code></td>
+      <td><code>deepsec.requestedDataRoles</code></td>
       <td>No</td>
       <td>Comma-separated DeepSec data roles to request explicitly for every database operation. Usually unset for group-based role activation.</td>
-      <td><code>-Ddeepsec.dataRoles=CUSTOMER_READER</code></td>
+      <td><code>-Ddeepsec.requestedDataRoles=CUSTOMER_READER</code></td>
     </tr>
   </tbody>
 </table>

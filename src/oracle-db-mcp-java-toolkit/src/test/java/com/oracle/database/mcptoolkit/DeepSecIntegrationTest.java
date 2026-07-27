@@ -291,15 +291,15 @@ class DeepSecIntegrationTest {
   }
 
   private static InteractiveOAuthLogin.Configuration oauthConfiguration() {
-    String authorizationServer = stripTrailingSlash(requiredConfiguration(null, "authServer"));
+    String authorizationServer = stripTrailingSlash(requiredConfiguration(null, "auth.authorizationServer"));
     return new InteractiveOAuthLogin.Configuration(
             authorizationServer + "/oauth2/v1/authorize",
             authorizationServer + "/oauth2/v1/token",
-            requiredConfiguration(null, "clientId"),
-            requiredConfiguration(null, "clientSecret"),
-            requiredConfiguration(null, "auth.redirectUri"),
-            configuration("auth.upstreamScopes", configuration("mcp.scopes", "openid")),
-            configuration("mcp.resourceUrl", null),
+            requiredConfiguration(null, "deepsec.it.userLogin.clientId"),
+            requiredConfiguration(null, "deepsec.it.userLogin.clientSecret"),
+            requiredConfiguration(null, "deepsec.it.userLogin.callbackUri"),
+            configuration("deepsec.it.userLogin.scopes", "openid"),
+            configuration("mcp.oauth.resourceUrl", null),
             Duration.ofSeconds(Long.parseLong(configuration("deepsec.it.loginTimeoutSeconds", "180"))));
   }
 

@@ -33,8 +33,6 @@ public class OAuth2Configuration {
   private final String clientId;
   /** The OAuth2 client secret. */
   private final String clientSecret;
-  /** Dot-separated introspection response path that contains OAuth scopes. */
-  private final String scopeClaimPath;
 
   /** Flag indicating whether authentication is enabled. */
   private final boolean isAuthenticationEnabled;
@@ -50,17 +48,16 @@ public class OAuth2Configuration {
    * nor OAuth2 introspection is configured, initializes a TokenGenerator for local token generation.
    */
   private OAuth2Configuration() {
-    isAuthenticationEnabled = LoadedConstants.ENABLE_AUTH;
-    authServer = LoadedConstants.AUTH_SERVER;
-    introspectionEndpoint = LoadedConstants.INTROSPECTION_ENDPOINT;
-    clientId = LoadedConstants.CLIENT_ID;
-    clientSecret = LoadedConstants.CLIENT_SECRET;
-    scopeClaimPath = LoadedConstants.OAUTH_SCOPE_CLAIM_PATH;
+    isAuthenticationEnabled = LoadedConstants.AUTH_ENABLED;
+    authServer = LoadedConstants.AUTH_AUTHORIZATION_SERVER;
+    introspectionEndpoint = LoadedConstants.USER_TOKEN_INTROSPECTION_ENDPOINT;
+    clientId = LoadedConstants.USER_TOKEN_INTROSPECTION_CLIENT_ID;
+    clientSecret = LoadedConstants.USER_TOKEN_INTROSPECTION_CLIENT_SECRET;
     isOAuth2Configured = authServer != null && introspectionEndpoint != null && clientId != null && clientSecret != null;
-    isJwtValidationConfigured = "jwt".equals(LoadedConstants.AUTH_VALIDATION_MODE)
-            && !isBlank(LoadedConstants.AUTH_ISSUER)
-            && !isBlank(LoadedConstants.AUTH_JWKS_URI)
-            && !isBlank(LoadedConstants.AUTH_AUDIENCE);
+    isJwtValidationConfigured = "jwt".equals(LoadedConstants.USER_TOKEN_VALIDATION_MODE)
+            && !isBlank(LoadedConstants.USER_TOKEN_JWT_ISSUER)
+            && !isBlank(LoadedConstants.USER_TOKEN_JWT_JWKS_URI)
+            && !isBlank(LoadedConstants.USER_TOKEN_JWT_AUDIENCE);
 
     if (!isAuthenticationEnabled)
       LOG.warning("Authentication is disabled");
@@ -89,16 +86,16 @@ public class OAuth2Configuration {
     final var mainMessage = "The following OAuth system properties are not configured correctly: ";
 
     if (authServer == null)
-      warningMessages.add("Authentication server URL (-DauthServer)");
+      warningMessages.add("Authentication server URL (-Dauth.authorizationServer)");
 
     if (introspectionEndpoint == null)
-      warningMessages.add("Introspection endpoint (-DintrospectionEndpoint)");
+      warningMessages.add("Introspection endpoint (-Dauth.userTokenValidation.introspection.endpoint)");
 
     if (clientId == null)
-      warningMessages.add("Client ID (-DclientId)");
+      warningMessages.add("Client ID (-Dauth.userTokenValidation.introspection.clientId)");
 
     if (clientSecret == null)
-      warningMessages.add("Client secret (-DclientSecret)");
+      warningMessages.add("Client secret (-Dauth.userTokenValidation.introspection.clientSecret)");
 
     return mainMessage + String.join(", ", warningMessages);
   }
@@ -150,15 +147,6 @@ public class OAuth2Configuration {
    */
   public String getIntrospectionEndpoint() {
     return introspectionEndpoint;
-  }
-
-  /**
-   * Returns the dot-separated claim path used to extract OAuth scopes from token introspection.
-   *
-   * @return scope claim path
-   */
-  public String getScopeClaimPath() {
-    return scopeClaimPath;
   }
 
   /**

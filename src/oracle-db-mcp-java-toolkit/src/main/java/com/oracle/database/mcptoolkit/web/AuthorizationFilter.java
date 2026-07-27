@@ -124,10 +124,11 @@ public class AuthorizationFilter implements Filter {
   }
 
   private Set<String> parseDataRoles() {
-    if (LoadedConstants.DEEPSEC_DATA_ROLES == null || LoadedConstants.DEEPSEC_DATA_ROLES.isBlank()) {
+    if (LoadedConstants.DEEPSEC_REQUESTED_DATA_ROLES == null
+            || LoadedConstants.DEEPSEC_REQUESTED_DATA_ROLES.isBlank()) {
       return Set.of();
     }
-    return Arrays.stream(LoadedConstants.DEEPSEC_DATA_ROLES.split(","))
+    return Arrays.stream(LoadedConstants.DEEPSEC_REQUESTED_DATA_ROLES.split(","))
             .map(String::trim)
             .filter(role -> !role.isEmpty())
             .collect(Collectors.toUnmodifiableSet());
@@ -144,9 +145,9 @@ public class AuthorizationFilter implements Filter {
   private void handleError(HttpServletResponse httpResponse, HttpServletRequest httpRequest) throws IOException {
     final String serverURL = WebUtils.buildURLFromRequest(httpRequest);
     final String resourceMetadataURL = serverURL + "/.well-known/oauth-protected-resource";
-    final String scopes = LoadedConstants.MCP_SCOPES == null || LoadedConstants.MCP_SCOPES.isBlank()
+    final String scopes = LoadedConstants.MCP_OAUTH_SCOPES == null || LoadedConstants.MCP_OAUTH_SCOPES.isBlank()
             ? "openid"
-            : LoadedConstants.MCP_SCOPES;
+            : LoadedConstants.MCP_OAUTH_SCOPES;
 
     httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
     httpResponse.setHeader("WWW-Authenticate",

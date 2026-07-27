@@ -41,36 +41,50 @@ public final class LoadedConstants {
 
   /** OAuth config */
   public static final String ALLOWED_HOSTS= System.getProperty("allowedHosts","*");
-  public static final String REDIRECT_OPENID_TO_OAUTH= System.getProperty("redirectOpenIDToOAuth","false");
-  public static final boolean ENABLE_AUTH = Boolean.parseBoolean(System.getProperty("enableAuthentication","false"));
+  public static final String AUTH_OPENID_DISCOVERY_REDIRECT_ENABLED =
+          System.getProperty("auth.openIdDiscoveryRedirectEnabled", "false");
+  public static final boolean AUTH_ENABLED = Boolean.parseBoolean(System.getProperty("auth.enabled", "false"));
   public static final String ORACLE_DB_TOOLKIT_AUTH_TOKEN = System.getenv("ORACLE_DB_TOOLKIT_AUTH_TOKEN");
-  public static final String AUTH_SERVER = System.getProperty("authServer");
-  public static final String INTROSPECTION_ENDPOINT = System.getProperty("introspectionEndpoint");
-  public static final String CLIENT_ID = System.getProperty("clientId");
-  public static final String CLIENT_SECRET = System.getProperty("clientSecret");
-  public static final String AUTH_VALIDATION_MODE = System.getProperty("auth.validationMode", "introspection")
+  public static final String AUTH_AUTHORIZATION_SERVER = System.getProperty("auth.authorizationServer");
+  public static final String USER_TOKEN_INTROSPECTION_ENDPOINT =
+          System.getProperty("auth.userTokenValidation.introspection.endpoint");
+  public static final String USER_TOKEN_INTROSPECTION_CLIENT_ID =
+          System.getProperty("auth.userTokenValidation.introspection.clientId");
+  public static final String USER_TOKEN_INTROSPECTION_CLIENT_SECRET =
+          System.getProperty("auth.userTokenValidation.introspection.clientSecret");
+  public static final String USER_TOKEN_VALIDATION_MODE =
+          System.getProperty("auth.userTokenValidation.mode", "introspection")
           .trim()
           .toLowerCase();
-  public static final String AUTH_ISSUER = System.getProperty("auth.issuer");
-  public static final String AUTH_JWKS_URI = System.getProperty("auth.jwksUri");
-  public static final String AUTH_AUDIENCE = System.getProperty("auth.audience");
-  public static final long AUTH_JWKS_CACHE_SECONDS =
-          Long.parseLong(System.getProperty("auth.jwksCacheSeconds", "600"));
+  public static final String USER_TOKEN_JWT_ISSUER =
+          System.getProperty("auth.userTokenValidation.jwt.issuer");
+  public static final String USER_TOKEN_JWT_JWKS_URI =
+          System.getProperty("auth.userTokenValidation.jwt.jwksUri");
+  public static final String USER_TOKEN_JWT_AUDIENCE =
+          System.getProperty("auth.userTokenValidation.jwt.audience");
+  public static final long USER_TOKEN_JWT_JWKS_CACHE_SECONDS = Long.parseLong(
+          System.getProperty("auth.userTokenValidation.jwt.jwksCacheSeconds", "600"));
 
   /** MCP OAuth discovery config */
-  public static final String MCP_AUTHORIZATION_SERVER =
-          System.getProperty("mcp.auth.authorizationServer", AUTH_SERVER);
-  public static final String MCP_SCOPES = System.getProperty("mcp.scopes", "openid");
-  public static final String MCP_RESOURCE_URL = System.getProperty("mcp.resourceUrl");
+  public static final String MCP_OAUTH_AUTHORIZATION_SERVER =
+          System.getProperty("mcp.oauth.authorizationServer", AUTH_AUTHORIZATION_SERVER);
+  public static final String MCP_OAUTH_SCOPES = System.getProperty("mcp.oauth.scopes", "openid");
+  public static final String MCP_OAUTH_RESOURCE_URL = System.getProperty("mcp.oauth.resourceUrl");
 
   /** Deep Data Security config */
   public static final boolean DEEPSEC_ENABLED = Boolean.parseBoolean(System.getProperty("deepsec.enabled", "false"));
-  public static final String DEEPSEC_DATABASE_ACCESS_TOKEN = System.getProperty("deepsec.databaseAccessToken");
-  public static final String DEEPSEC_TOKEN_ENDPOINT = System.getProperty("deepsec.tokenEndpoint");
-  public static final String DEEPSEC_CLIENT_ID = System.getProperty("deepsec.clientId");
-  public static final String DEEPSEC_CLIENT_SECRET = System.getProperty("deepsec.clientSecret");
-  public static final String DEEPSEC_SCOPE = System.getProperty("deepsec.scope");
-  public static final String DEEPSEC_DATA_ROLES = System.getProperty("deepsec.dataRoles");
+  public static final String DEEPSEC_DATABASE_TOKEN_STATIC_VALUE =
+          System.getProperty("deepsec.databaseToken.staticValue");
+  public static final String DEEPSEC_DATABASE_TOKEN_ENDPOINT =
+          System.getProperty("deepsec.databaseToken.tokenEndpoint");
+  public static final String DEEPSEC_DATABASE_TOKEN_CLIENT_ID =
+          System.getProperty("deepsec.databaseToken.clientId");
+  public static final String DEEPSEC_DATABASE_TOKEN_CLIENT_SECRET =
+          System.getProperty("deepsec.databaseToken.clientSecret");
+  public static final String DEEPSEC_DATABASE_TOKEN_SCOPE =
+          System.getProperty("deepsec.databaseToken.scope");
+  public static final String DEEPSEC_REQUESTED_DATA_ROLES =
+          System.getProperty("deepsec.requestedDataRoles");
 
   /** Yaml config */
   public static final String CONFIG_FILE = System.getProperty("configFile");

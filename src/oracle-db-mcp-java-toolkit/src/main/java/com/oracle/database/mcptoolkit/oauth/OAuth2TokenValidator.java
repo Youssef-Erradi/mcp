@@ -71,11 +71,12 @@ public class OAuth2TokenValidator {
     if (accessToken == null || accessToken.isBlank())
       return false;
 
-    if ("jwt".equals(LoadedConstants.AUTH_VALIDATION_MODE))
+    if ("jwt".equals(LoadedConstants.USER_TOKEN_VALIDATION_MODE))
       return isJwtTokenValid(accessToken);
 
-    if (!"introspection".equals(LoadedConstants.AUTH_VALIDATION_MODE)) {
-      LOG.log(Level.WARNING, () -> "Unsupported auth.validationMode: " + LoadedConstants.AUTH_VALIDATION_MODE);
+    if (!"introspection".equals(LoadedConstants.USER_TOKEN_VALIDATION_MODE)) {
+      LOG.log(Level.WARNING, () -> "Unsupported auth.userTokenValidation.mode: "
+              + LoadedConstants.USER_TOKEN_VALIDATION_MODE);
       return false;
     }
 
@@ -139,12 +140,12 @@ public class OAuth2TokenValidator {
   }
 
   private void requireJwtConfig() {
-    if (isBlank(LoadedConstants.AUTH_ISSUER))
-      throw new IllegalArgumentException("auth.issuer is required for JWT validation");
-    if (isBlank(LoadedConstants.AUTH_JWKS_URI))
-      throw new IllegalArgumentException("auth.jwksUri is required for JWT validation");
-    if (isBlank(LoadedConstants.AUTH_AUDIENCE))
-      throw new IllegalArgumentException("auth.audience is required for JWT validation");
+    if (isBlank(LoadedConstants.USER_TOKEN_JWT_ISSUER))
+      throw new IllegalArgumentException("auth.userTokenValidation.jwt.issuer is required for JWT validation");
+    if (isBlank(LoadedConstants.USER_TOKEN_JWT_JWKS_URI))
+      throw new IllegalArgumentException("auth.userTokenValidation.jwt.jwksUri is required for JWT validation");
+    if (isBlank(LoadedConstants.USER_TOKEN_JWT_AUDIENCE))
+      throw new IllegalArgumentException("auth.userTokenValidation.jwt.audience is required for JWT validation");
   }
 
   private DefaultJWTProcessor<SecurityContext> jwtProcessor() throws IOException {
@@ -159,26 +160,26 @@ public class OAuth2TokenValidator {
         return cache.processor();
       }
 
-      long cacheSeconds = Math.max(LoadedConstants.AUTH_JWKS_CACHE_SECONDS, 1);
+      long cacheSeconds = Math.max(LoadedConstants.USER_TOKEN_JWT_JWKS_CACHE_SECONDS, 1);
       RemoteJWKSet<SecurityContext> jwkSource = new RemoteJWKSet<>(
-              new URL(LoadedConstants.AUTH_JWKS_URI),
+              new URL(LoadedConstants.USER_TOKEN_JWT_JWKS_URI),
               null,
               new DefaultJWKSetCache(cacheSeconds, cacheSeconds, TimeUnit.SECONDS));
       DefaultJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
       processor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, jwkSource));
 
       DefaultJWTClaimsVerifier<SecurityContext> claimsVerifier = new DefaultJWTClaimsVerifier<>(
-              Set.of(LoadedConstants.AUTH_AUDIENCE),
-              new JWTClaimsSet.Builder().issuer(LoadedConstants.AUTH_ISSUER).build(),
+              Set.of(LoadedConstants.USER_TOKEN_JWT_AUDIENCE),
+              new JWTClaimsSet.Builder().issuer(LoadedConstants.USER_TOKEN_JWT_ISSUER).build(),
               Set.of("iss", "aud", "exp"),
               Set.of());
       claimsVerifier.setMaxClockSkew(0);
       processor.setJWTClaimsSetVerifier(claimsVerifier);
       jwtProcessorCache = new JwtProcessorCache(
               processor,
-              LoadedConstants.AUTH_ISSUER,
-              LoadedConstants.AUTH_JWKS_URI,
-              LoadedConstants.AUTH_AUDIENCE,
+              LoadedConstants.USER_TOKEN_JWT_ISSUER,
+              LoadedConstants.USER_TOKEN_JWT_JWKS_URI,
+              LoadedConstants.USER_TOKEN_JWT_AUDIENCE,
               cacheSeconds);
       return processor;
     }
@@ -195,10 +196,10 @@ public class OAuth2TokenValidator {
           String audience,
           long cacheSeconds) {
     private boolean matchesCurrentConfiguration() {
-      return issuer.equals(LoadedConstants.AUTH_ISSUER)
-              && jwksUri.equals(LoadedConstants.AUTH_JWKS_URI)
-              && audience.equals(LoadedConstants.AUTH_AUDIENCE)
-              && cacheSeconds == Math.max(LoadedConstants.AUTH_JWKS_CACHE_SECONDS, 1);
+      return issuer.equals(LoadedConstants.USER_TOKEN_JWT_ISSUER)
+              && jwksUri.equals(LoadedConstants.USER_TOKEN_JWT_JWKS_URI)
+              && audience.equals(LoadedConstants.USER_TOKEN_JWT_AUDIENCE)
+              && cacheSeconds == Math.max(LoadedConstants.USER_TOKEN_JWT_JWKS_CACHE_SECONDS, 1);
     }
   }
 }

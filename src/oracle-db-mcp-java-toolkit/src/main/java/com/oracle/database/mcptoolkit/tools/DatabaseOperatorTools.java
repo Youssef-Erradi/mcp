@@ -746,7 +746,7 @@ public final class DatabaseOperatorTools {
     if (principal != null) {
       return principal.ownerId();
     }
-    if (LoadedConstants.ENABLE_AUTH) {
+    if (LoadedConstants.AUTH_ENABLED) {
       throw new SQLException("Authenticated transaction owner is unavailable");
     }
     return "unauthenticated";

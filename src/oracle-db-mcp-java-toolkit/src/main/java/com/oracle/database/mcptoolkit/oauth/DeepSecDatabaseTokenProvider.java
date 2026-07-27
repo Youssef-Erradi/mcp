@@ -35,9 +35,9 @@ public final class DeepSecDatabaseTokenProvider {
   private DeepSecDatabaseTokenProvider() {}
 
   public static String getToken() {
-    if (LoadedConstants.DEEPSEC_DATABASE_ACCESS_TOKEN != null
-            && !LoadedConstants.DEEPSEC_DATABASE_ACCESS_TOKEN.isBlank()) {
-      return LoadedConstants.DEEPSEC_DATABASE_ACCESS_TOKEN;
+    if (LoadedConstants.DEEPSEC_DATABASE_TOKEN_STATIC_VALUE != null
+            && !LoadedConstants.DEEPSEC_DATABASE_TOKEN_STATIC_VALUE.isBlank()) {
+      return LoadedConstants.DEEPSEC_DATABASE_TOKEN_STATIC_VALUE;
     }
 
     AccessToken token = cachedToken;
@@ -62,14 +62,15 @@ public final class DeepSecDatabaseTokenProvider {
   private static AccessToken requestToken() {
     validateConfig();
 
-    String credentials = LoadedConstants.DEEPSEC_CLIENT_ID + ":" + LoadedConstants.DEEPSEC_CLIENT_SECRET;
+    String credentials = LoadedConstants.DEEPSEC_DATABASE_TOKEN_CLIENT_ID + ":"
+            + LoadedConstants.DEEPSEC_DATABASE_TOKEN_CLIENT_SECRET;
     String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(UTF_8));
     String requestBody = "grant_type=client_credentials&scope="
-            + URLEncoder.encode(LoadedConstants.DEEPSEC_SCOPE, UTF_8);
+            + URLEncoder.encode(LoadedConstants.DEEPSEC_DATABASE_TOKEN_SCOPE, UTF_8);
 
     try {
       HttpRequest request = HttpRequest.newBuilder()
-              .uri(URI.create(LoadedConstants.DEEPSEC_TOKEN_ENDPOINT))
+              .uri(URI.create(LoadedConstants.DEEPSEC_DATABASE_TOKEN_ENDPOINT))
               .header("Authorization", "Basic " + encodedCredentials)
               .header("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
               .header("Accept", "application/json")
@@ -96,21 +97,22 @@ public final class DeepSecDatabaseTokenProvider {
   }
 
   private static void validateConfig() {
-    if (isBlank(LoadedConstants.DEEPSEC_TOKEN_ENDPOINT)) {
+    if (isBlank(LoadedConstants.DEEPSEC_DATABASE_TOKEN_ENDPOINT)) {
       throw new IllegalStateException(
-              "Deep Data Security is enabled but neither deepsec.databaseAccessToken nor deepsec.tokenEndpoint is configured");
+              "Deep Data Security is enabled but neither deepsec.databaseToken.staticValue nor "
+                      + "deepsec.databaseToken.tokenEndpoint is configured");
     }
-    if (isBlank(LoadedConstants.DEEPSEC_CLIENT_ID)) {
+    if (isBlank(LoadedConstants.DEEPSEC_DATABASE_TOKEN_CLIENT_ID)) {
       throw new IllegalStateException(
-              "Deep Data Security token endpoint is configured but deepsec.clientId is missing");
+              "Deep Data Security token endpoint is configured but deepsec.databaseToken.clientId is missing");
     }
-    if (isBlank(LoadedConstants.DEEPSEC_CLIENT_SECRET)) {
+    if (isBlank(LoadedConstants.DEEPSEC_DATABASE_TOKEN_CLIENT_SECRET)) {
       throw new IllegalStateException(
-              "Deep Data Security token endpoint is configured but deepsec.clientSecret is missing");
+              "Deep Data Security token endpoint is configured but deepsec.databaseToken.clientSecret is missing");
     }
-    if (isBlank(LoadedConstants.DEEPSEC_SCOPE)) {
+    if (isBlank(LoadedConstants.DEEPSEC_DATABASE_TOKEN_SCOPE)) {
       throw new IllegalStateException(
-              "Deep Data Security token endpoint is configured but deepsec.scope is missing");
+              "Deep Data Security token endpoint is configured but deepsec.databaseToken.scope is missing");
     }
   }
 
