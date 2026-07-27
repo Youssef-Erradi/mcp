@@ -57,10 +57,9 @@ public class OAuth2TokenValidator {
   /**
    * Validates the given access token.
    * <p>
-   * If OAuth2 is not configured (as determined by OAuth2Configuration), this method
-   * delegates validation to the TokenGenerator instance for local verification.
-   * Otherwise, the configured validation mode determines whether the token is verified
-   * locally against the configured JWKS or introspected with the OAuth2 authorization server.
+   * JWT validation uses only the configured issuer, JWKS URI, and audience. Introspection
+   * requires the OAuth2 client configuration; when that configuration is absent, this method
+   * delegates to the local TokenGenerator for backward compatibility.
    * </p>
    *
    * @param accessToken the OAuth2 access token to validate; must not be null or blank
@@ -69,10 +68,6 @@ public class OAuth2TokenValidator {
    *         though exceptions are logged and handled internally by returning false
    */
   public boolean isTokenValid(final String accessToken) {
-    if (!OAUTH_CONFIG.isOAuth2Configured())
-      return TokenGenerator.getInstance().verifyToken(accessToken);
-
-    boolean isTokenValid = false;
     if (accessToken == null || accessToken.isBlank())
       return false;
 
@@ -83,6 +78,9 @@ public class OAuth2TokenValidator {
       LOG.log(Level.WARNING, () -> "Unsupported auth.validationMode: " + LoadedConstants.AUTH_VALIDATION_MODE);
       return false;
     }
+
+    if (!OAUTH_CONFIG.isOAuth2Configured())
+      return TokenGenerator.getInstance().verifyToken(accessToken);
 
     return isTokenValidByIntrospection(accessToken);
   }
