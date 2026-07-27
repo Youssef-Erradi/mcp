@@ -24,6 +24,11 @@ public final class LoadedConstants {
   public static final String HTTPS_PORT = System.getProperty("https.port");
   public static final String KEYSTORE_PATH = System.getProperty("certificatePath");
   public static final String KEYSTORE_PASSWORD = System.getProperty("certificatePassword");
+  public static final String HTTP_BIND_ADDRESS = System.getProperty("http.bindAddress", "127.0.0.1").trim();
+  public static final String HTTP_ALLOWED_HOSTS = System.getProperty(
+          "http.allowedHosts", "localhost,127.0.0.1,[::1]");
+  public static final boolean HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT = Boolean.parseBoolean(
+          System.getProperty("http.allowUnauthenticatedForDevelopment", "false"));
 
   /** Tools config */
   public static final String TOOLS = System.getProperty("tools");

@@ -578,6 +578,21 @@ If you don’t set `-Dtransport`, the server runs in stdio mode by default.
 
 In streamable HTTP mode, you run the server as a standalone HTTP service and point an MCP client to it.
 
+##### HTTP transport security
+
+HTTP transport requires authentication. Start it with `-DenableAuthentication=true` and configure OAuth2, or use the generated development token described below. The server binds to `127.0.0.1` by default and accepts MCP requests only for `localhost`, `127.0.0.1`, or `::1`.
+
+For local development only, an unauthenticated server can be started with `-Dhttp.allowUnauthenticatedForDevelopment=true`. This is intentionally explicit and emits a warning; do not use it for a remotely reachable service.
+
+To expose a server outside the local machine, configure both the bind address and the expected public host names. `http.allowedHosts` is a comma-separated list of host names only (no scheme or port) and is used to reject untrusted `Host` and browser `Origin` headers before MCP dispatch:
+
+```shell
+-Dhttp.bindAddress=0.0.0.0 \
+-Dhttp.allowedHosts=mcp.example.com
+```
+
+Use a reverse proxy or firewall appropriate for your deployment. `allowedHosts` is a separate CORS setting for OAuth discovery metadata; it does not control MCP request admission.
+
 ##### Enabling HTTPS (SSL/TLS)
 
 **WARNING**: Enable https at your own risk. When enabling https pay extra attention to the MCP tools that you enable as they may create a new risk for your database server.
@@ -594,6 +609,7 @@ java \
   -Dhttps.port=45450 \
   -DcertificatePath=/path/to/your-certificate.p12 \
   -DcertificatePassword=yourPassword \
+  -DenableAuthentication=true \
   -Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service \
   -Ddb.user=your_user \
   -Ddb.password=your_password \
@@ -601,7 +617,7 @@ java \
   -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
 
-This exposes the MCP endpoint at: `https://localhost:45450/mcp`.
+This exposes the authenticated MCP endpoint at: `https://localhost:45450/mcp`.
 
 ##### Using HTTP transport and Cline
 
@@ -641,7 +657,7 @@ Claude Desktop accepts HTTPS endpoints for remote MCP servers.
 
 #### 4.4.1. Generated Token (For Development and Testing)
 
-To enable authentication for the HTTP server, you must set the `-DenableAuthentication` system property to `true` (default value is `false`).
+To enable authentication for the HTTP server, set the `-DenableAuthentication` system property to `true` (default value is `false`). HTTP transport refuses to start without authentication unless `-Dhttp.allowUnauthenticatedForDevelopment=true` is explicitly set for local development.
 If it's enabled (e.g. set to `true`) the MCP Server will check if there's an environment variable called `ORACLE_DB_TOOLKIT_AUTH_TOKEN` and its value will be used as a token.
 If the environment variable is not found, then a random UUID token will be generated once per JVM session. The token would be logged at the `INFO` level.
 
@@ -821,6 +837,24 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>45451</code></td>
     </tr>
     <tr>
+      <td><code>http.bindAddress</code></td>
+      <td>No</td>
+      <td>Address for the HTTP transport connector. Defaults to <code>127.0.0.1</code>. A non-loopback address requires an explicit <code>http.allowedHosts</code> setting.</td>
+      <td><code>-Dhttp.bindAddress=0.0.0.0</code></td>
+    </tr>
+    <tr>
+      <td><code>http.allowedHosts</code></td>
+      <td>No</td>
+      <td>Comma-separated MCP request host allowlist. Browser requests with an untrusted <code>Host</code> or <code>Origin</code> are rejected before MCP dispatch. Defaults to <code>localhost,127.0.0.1,[::1]</code>.</td>
+      <td><code>-Dhttp.allowedHosts=mcp.example.com</code></td>
+    </tr>
+    <tr>
+      <td><code>http.allowUnauthenticatedForDevelopment</code></td>
+      <td>No</td>
+      <td>Allows unauthenticated HTTP transport for local development only. Defaults to <code>false</code>; enabling it emits a security warning.</td>
+      <td><code>-Dhttp.allowUnauthenticatedForDevelopment=true</code></td>
+    </tr>
+    <tr>
       <td><code>certificatePath</code></td>
       <td>No</td>
       <td>
@@ -942,6 +976,9 @@ podman run --rm \
     -Dhttps.port=45451 \
     -DcertificatePath=[path/to/certificate] \
     -DcertificatePassword=[password] \
+    -Dhttp.bindAddress=0.0.0.0 \
+    -Dhttp.allowedHosts=your-public-hostname \
+    -DenableAuthentication=true \
     -Dtools=get-jdbc-stats,get-jdbc-queries \
     -Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service \
     -Ddb.user=your_user \
@@ -970,6 +1007,9 @@ podman run --rm \
   -e JAVA_TOOL_OPTIONS="\
     -Dtransport=http \
     -Dhttps.port=45451 \
+    -Dhttp.bindAddress=0.0.0.0 \
+    -Dhttp.allowedHosts=your-public-hostname \
+    -DenableAuthentication=true \
     -Dtools=get-jdbc-stats,get-jdbc-queries \
     -Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service \
     -Ddb.user=your_user \
