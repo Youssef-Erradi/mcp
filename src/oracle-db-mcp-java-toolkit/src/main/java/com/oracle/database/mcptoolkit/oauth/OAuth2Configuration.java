@@ -17,8 +17,9 @@ import java.util.logging.Logger;
  * The OAuth2Configuration class is a singleton that manages OAuth2 authentication configuration settings.
  * It reads configuration values from system properties and provides access to them via getter methods.
  * <p>
- * This class also handles logging based on whether authentication and OAuth2 are enabled or configured.
- * If OAuth2 is not properly configured, it initializes a TokenGenerator for local token generation.
+ * This class also handles logging based on whether authentication, JWT validation, or OAuth2
+ * introspection are configured. If neither remote validation mode is configured, it initializes
+ * a TokenGenerator for local token generation.
  */
 public class OAuth2Configuration {
   private static final Logger LOG = Logger.getLogger(OAuth2Configuration.class.getName());
@@ -39,12 +40,14 @@ public class OAuth2Configuration {
   private final boolean isAuthenticationEnabled;
   /** Flag indicating whether OAuth2 is fully configured. */
   private final boolean isOAuth2Configured;
+  /** Flag indicating whether local JWT validation is fully configured. */
+  private final boolean isJwtValidationConfigured;
 
   /**
    * Private constructor to initialize the singleton instance.
    * Reads system properties for authentication settings and OAuth2 configuration.
-   * Logs warnings or info messages based on the configuration status.
-   * If OAuth2 is not configured, initializes a TokenGenerator for local token generation.
+   * Logs warnings or info messages based on the configuration status. If neither JWT validation
+   * nor OAuth2 introspection is configured, initializes a TokenGenerator for local token generation.
    */
   private OAuth2Configuration() {
     isAuthenticationEnabled = LoadedConstants.ENABLE_AUTH;
@@ -54,15 +57,21 @@ public class OAuth2Configuration {
     clientSecret = LoadedConstants.CLIENT_SECRET;
     scopeClaimPath = LoadedConstants.OAUTH_SCOPE_CLAIM_PATH;
     isOAuth2Configured = authServer != null && introspectionEndpoint != null && clientId != null && clientSecret != null;
+    isJwtValidationConfigured = "jwt".equals(LoadedConstants.AUTH_VALIDATION_MODE)
+            && !isBlank(LoadedConstants.AUTH_ISSUER)
+            && !isBlank(LoadedConstants.AUTH_JWKS_URI)
+            && !isBlank(LoadedConstants.AUTH_AUDIENCE);
 
     if (!isAuthenticationEnabled)
       LOG.warning("Authentication is disabled");
     else {
       LOG.info("Authentication is enabled");
 
-      if (isOAuth2Configured)
+      if (isJwtValidationConfigured) {
+        LOG.info("JWT validation is configured");
+      } else if (isOAuth2Configured) {
         LOG.info("OAuth2 is configured");
-      else {
+      } else {
         LOG.warning("OAuth2 is not configured");
         if (authServer != null || introspectionEndpoint != null || clientId != null || clientSecret != null) {
           final var warningMessage = getMissingConfigurationWarningMessage();
@@ -92,6 +101,10 @@ public class OAuth2Configuration {
       warningMessages.add("Client secret (-DclientSecret)");
 
     return mainMessage + String.join(", ", warningMessages);
+  }
+
+  private static boolean isBlank(String value) {
+    return value == null || value.isBlank();
   }
 
   /**
@@ -164,5 +177,14 @@ public class OAuth2Configuration {
    */
   public boolean isOAuth2Configured() {
     return isOAuth2Configured;
+  }
+
+  /**
+   * Checks whether an authorization server is configured for MCP discovery.
+   *
+   * @return true if an authorization server URL is configured
+   */
+  public boolean isAuthorizationServerConfigured() {
+    return !isBlank(authServer);
   }
 }

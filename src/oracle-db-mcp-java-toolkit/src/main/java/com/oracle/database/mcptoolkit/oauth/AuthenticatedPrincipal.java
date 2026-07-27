@@ -5,8 +5,8 @@
 
 package com.oracle.database.mcptoolkit.oauth;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,17 +23,14 @@ public record AuthenticatedPrincipal(
         String subject,
         List<String> groups,
         List<String> roles) {
-  private static final ObjectMapper MAPPER = new ObjectMapper();
-
   public static AuthenticatedPrincipal fromValidatedToken(String token) {
     if (token == null || token.isBlank()) {
       throw new IllegalArgumentException("Validated access token is required");
     }
 
     try {
-      String[] parts = token.split("\\.");
-      if (parts.length == 3) {
-        JsonNode claims = MAPPER.readTree(Base64.getUrlDecoder().decode(parts[1]));
+      JWTClaimsSet claims = parseSignedJwtClaims(token);
+      if (claims != null) {
         String issuer = text(claims, "iss");
         String subject = firstText(claims, "sub", "user_id", "username");
         if (subject != null) {
@@ -70,11 +67,7 @@ public record AuthenticatedPrincipal(
     }
 
     try {
-      String[] parts = token.split("\\.");
-      if (parts.length != 3) {
-        throw new IllegalArgumentException("Deep Data Security requires a JWT end-user access token");
-      }
-      JsonNode claims = MAPPER.readTree(Base64.getUrlDecoder().decode(parts[1]));
+      JWTClaimsSet claims = parseSignedJwtClaims(token);
       String issuer = text(claims, "iss");
       String subject = text(claims, "sub");
       if (issuer == null || subject == null) {
@@ -100,7 +93,11 @@ public record AuthenticatedPrincipal(
     return "identity.oraclecloud.com".equals(host) || host.endsWith(".identity.oraclecloud.com");
   }
 
-  private static String firstText(JsonNode claims, String... names) {
+  private static JWTClaimsSet parseSignedJwtClaims(String token) throws Exception {
+    return SignedJWT.parse(token).getJWTClaimsSet();
+  }
+
+  private static String firstText(JWTClaimsSet claims, String... names) {
     for (String name : names) {
       String value = text(claims, name);
       if (value != null) {
@@ -110,26 +107,24 @@ public record AuthenticatedPrincipal(
     return null;
   }
 
-  private static String text(JsonNode claims, String name) {
-    JsonNode value = claims.get(name);
-    return value == null || !value.isTextual() || value.asText().isBlank()
-            ? null
-            : value.asText();
+  private static String text(JWTClaimsSet claims, String name) {
+    Object value = claims.getClaim(name);
+    return value instanceof String text && !text.isBlank() ? text : null;
   }
 
-  private static List<String> groups(JsonNode claims) {
+  private static List<String> groups(JWTClaimsSet claims) {
     return stringClaim(claims, "group", "groups");
   }
 
-  private static List<String> roles(JsonNode claims) {
+  private static List<String> roles(JWTClaimsSet claims) {
     return stringClaim(claims, "roles");
   }
 
-  private static List<String> stringClaim(JsonNode claims, String... names) {
-    JsonNode value = null;
+  private static List<String> stringClaim(JWTClaimsSet claims, String... names) {
+    Object value = null;
     for (String name : names) {
-      if (claims.has(name)) {
-        value = claims.get(name);
+      value = claims.getClaim(name);
+      if (value != null) {
         break;
       }
     }
@@ -137,14 +132,14 @@ public record AuthenticatedPrincipal(
       return List.of();
     }
     List<String> groups = new ArrayList<>();
-    if (value.isArray()) {
-      value.forEach(group -> {
-        if (group.isTextual() && !group.asText().isBlank()) {
-          groups.add(group.asText());
+    if (value instanceof List<?> values) {
+      values.forEach(group -> {
+        if (group instanceof String text && !text.isBlank()) {
+          groups.add(text);
         }
       });
-    } else if (value.isTextual() && !value.asText().isBlank()) {
-      groups.add(value.asText());
+    } else if (value instanceof String text && !text.isBlank()) {
+      groups.add(text);
     }
     return List.copyOf(groups);
   }
