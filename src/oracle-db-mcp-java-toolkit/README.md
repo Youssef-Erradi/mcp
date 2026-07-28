@@ -659,7 +659,9 @@ If your authorization server issues JWT access tokens, the MCP server can valida
 java \
     -Ddb.url=jdbc:oracle:thin:@host:1521/service \
     -Dtransport=http \
-    -Dhttp.port=8080 \
+    -Dhttps.port=8080 \
+    -DcertificatePath=/path/to/your-certificate.p12 \
+    -DcertificatePassword=yourPassword \
     -Dauth.enabled=true \
     -Dauth.authorizationServer=https://identity.example.com \
     -Dauth.userTokenValidation.mode=jwt \
@@ -733,7 +735,9 @@ java \
     -Ddb.user=mcp_app_user \
     -Ddb.password='your-db-password' \
     -Dtransport=http \
-    -Dhttp.port=8080 \
+    -Dhttps.port=8080 \
+    -DcertificatePath=/path/to/your-certificate.p12 \
+    -DcertificatePassword=yourPassword \
     -Dauth.enabled=true \
     -Dauth.authorizationServer=https://idcs.example.com \
     -Dmcp.oauth.scopes=openid \
