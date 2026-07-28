@@ -83,8 +83,6 @@ public final class LoadedConstants {
           System.getProperty("deepsec.databaseToken.clientSecret");
   public static final String DEEPSEC_DATABASE_TOKEN_SCOPE =
           System.getProperty("deepsec.databaseToken.scope");
-  public static final String DEEPSEC_REQUESTED_DATA_ROLES =
-          System.getProperty("deepsec.requestedDataRoles");
 
   /** Yaml config */
   public static final String CONFIG_FILE = System.getProperty("configFile");

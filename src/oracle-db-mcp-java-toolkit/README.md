@@ -684,7 +684,7 @@ When DeepSec is enabled, the request flow is:
 2. The server obtains a database-scoped DeepSec access token for the application.
 3. The server creates an Oracle JDBC `EndUserSecurityContext` from the database access token and the end-user token.
 4. OJDBC attaches that context to database operations.
-5. Oracle Database activates data roles from the token claims and optional requested roles.
+5. Oracle Database activates data roles from the token claims.
 
 Required properties:
 
@@ -697,7 +697,6 @@ Required properties:
 Optional properties:
 
 * `-Ddeepsec.databaseToken.staticValue`: Static database-scoped token for local smoke tests. Prefer `deepsec.databaseToken.tokenEndpoint` plus client credentials for normal use.
-* `-Ddeepsec.requestedDataRoles`: Comma-separated data roles to request explicitly in the end-user security context.
 * `-Ddb.transactionIdleTimeoutSeconds`: Rolls back an open transaction after this many unused seconds (default: `120`).
 * `-Ddb.transactionMaxLifetimeSeconds`: Absolute maximum lifetime for a transaction that spans tool calls (default: `300`).
 * `-Ddb.maxTransactionsPerUser`: Maximum concurrent open transactions for one authenticated user (default: `4`).
@@ -710,7 +709,7 @@ Expired transactions are automatically rolled back and returned to the connectio
 JWT can resume a transaction when its issuer and subject remain unchanged. Opaque access tokens are
 rejected when DeepSec is enabled because Oracle Database must validate the token and read its claims.
 
-In group-based DeepSec setups, leave `deepsec.requestedDataRoles` unset and let the database activate data roles from group claims in the end-user token. For example, an OCI IAM access-token claim such as:
+Oracle Database activates data roles from group claims in the end-user token. For example, an OCI IAM access-token claim such as:
 
 ```json
 {
@@ -724,8 +723,6 @@ can activate database roles mapped with clauses such as:
 CREATE DATA ROLE customer_reader
   MAPPED TO 'IAM_OAUTH_GROUP=CustomerReaders';
 ```
-
-Use `deepsec.requestedDataRoles` only when your database roles are designed for application-controlled activation, such as disabled data roles granted to the application identity. A global `deepsec.requestedDataRoles` value applies to every database operation, so prefer group-based roles or tool-specific role policy for production.
 
 Example:
 
@@ -1058,12 +1055,6 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td>No</td>
       <td>Static database-scoped token for local smoke tests. Prefer <code>deepsec.databaseToken.tokenEndpoint</code> plus client credentials for normal use.</td>
       <td><code>-Ddeepsec.databaseToken.staticValue=...</code></td>
-    </tr>
-    <tr>
-      <td><code>deepsec.requestedDataRoles</code></td>
-      <td>No</td>
-      <td>Comma-separated DeepSec data roles to request explicitly for every database operation. Usually unset for group-based role activation.</td>
-      <td><code>-Ddeepsec.requestedDataRoles=CUSTOMER_READER</code></td>
     </tr>
   </tbody>
 </table>

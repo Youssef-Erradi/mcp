@@ -24,9 +24,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import oracle.jdbc.EndUserSecurityContext;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * The AuthorizationFilter class is a servlet filter that authenticates incoming requests
@@ -112,26 +109,9 @@ public class AuthorizationFilter implements Filter {
   }
 
   private EndUserSecurityContext createEndUserSecurityContext(String endUserToken) {
-    EndUserSecurityContext context = EndUserSecurityContext.createWithToken(
+    return EndUserSecurityContext.createWithToken(
             DeepSecDatabaseTokenProvider.getToken(),
             endUserToken);
-
-    Set<String> roles = parseDataRoles();
-    if (!roles.isEmpty()) {
-      context = context.withDataRoles(roles);
-    }
-    return context;
-  }
-
-  private Set<String> parseDataRoles() {
-    if (LoadedConstants.DEEPSEC_REQUESTED_DATA_ROLES == null
-            || LoadedConstants.DEEPSEC_REQUESTED_DATA_ROLES.isBlank()) {
-      return Set.of();
-    }
-    return Arrays.stream(LoadedConstants.DEEPSEC_REQUESTED_DATA_ROLES.split(","))
-            .map(String::trim)
-            .filter(role -> !role.isEmpty())
-            .collect(Collectors.toUnmodifiableSet());
   }
 
   /**
