@@ -693,6 +693,7 @@ Required properties:
 * `-Ddeepsec.databaseToken.clientId`: Client ID used to obtain the database-scoped DeepSec token.
 * `-Ddeepsec.databaseToken.clientSecret`: Client secret used to obtain the database-scoped DeepSec token.
 * `-Ddeepsec.databaseToken.scope`: Database resource scope for the DeepSec/database token, for example `OracleDBDB_ACCESS_SCOPE`.
+* `-Doracle.ucp.createConnectionInBorrowThread=true`: Ensures UCP creates a new physical connection in the request thread that is borrowing it, so the current DeepSec context is available during connection creation.
 
 Optional properties:
 
@@ -731,6 +732,7 @@ java \
     -Ddb.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
     -Ddb.user=mcp_app_user \
     -Ddb.password='your-db-password' \
+    -Doracle.ucp.createConnectionInBorrowThread=true \
     -Dtransport=http \
     -Dhttps.port=8080 \
     -DcertificatePath=/path/to/your-certificate.p12 \
