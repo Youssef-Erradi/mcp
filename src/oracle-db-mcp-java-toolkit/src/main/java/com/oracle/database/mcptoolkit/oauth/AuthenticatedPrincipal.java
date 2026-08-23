@@ -23,6 +23,14 @@ public record AuthenticatedPrincipal(
         String subject,
         List<String> groups,
         List<String> roles) {
+  /**
+   * Derives a stable principal from a token that has already passed authentication.
+   *
+   * <p>Readable JWTs use their issuer and subject claims; opaque tokens use a token-bound fallback.
+   *
+   * @param token validated access token
+   * @return the authenticated principal
+   */
   public static AuthenticatedPrincipal fromValidatedToken(String token) {
     if (token == null || token.isBlank()) {
       throw new IllegalArgumentException("Validated access token is required");
@@ -83,11 +91,13 @@ public record AuthenticatedPrincipal(
     }
   }
 
+  /** Returns whether this principal was issued by a recognized Microsoft Entra ID issuer. */
   public boolean isAzureIssuer() {
     String host = issuerHost();
     return "login.microsoftonline.com".equals(host) || "sts.windows.net".equals(host);
   }
 
+  /** Returns whether this principal was issued by a recognized OCI IAM issuer. */
   public boolean isOciIssuer() {
     String host = issuerHost();
     return "identity.oraclecloud.com".equals(host) || host.endsWith(".identity.oraclecloud.com");

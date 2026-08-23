@@ -34,6 +34,12 @@ public final class DeepSecDatabaseTokenProvider {
 
   private DeepSecDatabaseTokenProvider() {}
 
+  /**
+   * Returns a usable database-scoped access token, obtaining and caching one when necessary.
+   *
+   * @return the configured static token or a client-credentials token for the database application
+   * @throws IllegalStateException if token configuration is invalid or the token request fails
+   */
   public static String getToken() {
     if (LoadedConstants.DEEPSEC_DATABASE_TOKEN_STATIC_VALUE != null
             && !LoadedConstants.DEEPSEC_DATABASE_TOKEN_STATIC_VALUE.isBlank()) {
