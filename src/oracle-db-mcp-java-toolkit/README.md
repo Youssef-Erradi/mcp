@@ -603,7 +603,6 @@ When connecting to the MCP server, the token needs to be provided in the Authori
 In order to configure an OAuth2 server, enable `-Dauth.enabled=true` alongside the following system properties:
 
 * `-Dauth.authorizationServer`: The OAuth2 server URL which MUST provide the `/.well-known/oauth-authorization-server`. If it only provides `/.well-known/openid-configuration`, enable `-Dauth.openIdDiscoveryRedirectEnabled=true`.
-* `-Dmcp.oauth.authorizationServer`: Optional authorization server URL advertised in MCP OAuth protected-resource metadata. If omitted, the server uses `auth.authorizationServer`.
 * `-Dmcp.oauth.scopes`: Optional space- or comma-separated OAuth scopes advertised to MCP clients for end-user login (default: `openid`).
 * `-Dmcp.oauth.resourceUrl`: Optional externally visible MCP resource URL advertised in OAuth protected-resource metadata. Set this when the server is behind a proxy or public route whose URL differs from the incoming servlet request URL.
 * `-Dauth.openIdDiscoveryRedirectEnabled`: (default: `false`) Creates an `/.well-known/oauth-authorization-server` endpoint that redirects to the authorization server's `/.well-known/openid-configuration` endpoint.
@@ -973,12 +972,6 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td>No</td>
       <td>System property that redirects MCP Server's <code>/.well-known/oauth-authorization-server</code> endpoint to the OAuth server's <code>/.well-known/openid-configuration</code> as a workaround for servers lacking the former (default value is <code>false</code>. If OAuth is not properly configured, then this system property is ignored).</td>
       <td><code>-Dauth.openIdDiscoveryRedirectEnabled=false</code></td>
-    </tr>
-    <tr>
-      <td><code>mcp.oauth.authorizationServer</code></td>
-      <td>No</td>
-      <td>Authorization server URL advertised to MCP OAuth clients. Defaults to <code>auth.authorizationServer</code>.</td>
-      <td><code>-Dmcp.oauth.authorizationServer=https://idcs.example.com</code></td>
     </tr>
     <tr>
       <td><code>mcp.oauth.scopes</code></td>

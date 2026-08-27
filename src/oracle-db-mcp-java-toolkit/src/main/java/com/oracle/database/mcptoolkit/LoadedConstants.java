@@ -66,8 +66,6 @@ public final class LoadedConstants {
           System.getProperty("auth.userTokenValidation.jwt.jwksCacheSeconds", "600"));
 
   /** MCP OAuth discovery config */
-  public static final String MCP_OAUTH_AUTHORIZATION_SERVER =
-          System.getProperty("mcp.oauth.authorizationServer", AUTH_AUTHORIZATION_SERVER);
   public static final String MCP_OAUTH_SCOPES = System.getProperty("mcp.oauth.scopes", "openid");
   public static final String MCP_OAUTH_RESOURCE_URL = System.getProperty("mcp.oauth.resourceUrl");
 
