@@ -400,7 +400,7 @@ public final class DatabaseOperatorTools {
          .name("db-session-context")
          .title("DB Session Context")
          .description("Returns database session identity, activated DeepSec roles, and provider-specific IAM roles or groups for diagnostics.")
-         .inputSchema(McpJsonMapper.getDefault(), ToolSchemas.NO_INPUT_SCHEMA)
+         .inputSchema(ToolSchemas.NO_INPUT_SCHEMA)
          .build())
       .callHandler((exchange, callReq) -> tryCall(() -> {
         try (Connection c = openConnection(config, null);

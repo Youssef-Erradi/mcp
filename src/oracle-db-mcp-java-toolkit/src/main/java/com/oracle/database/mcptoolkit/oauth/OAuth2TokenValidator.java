@@ -31,6 +31,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.text.ParseException;
 import java.util.Base64;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -68,26 +69,32 @@ public class OAuth2TokenValidator {
    *         though exceptions are logged and handled internally by returning false
    */
   public boolean isTokenValid(final String accessToken) {
+    return validateToken(accessToken).valid();
+  }
+
+  /** Validates a token and returns its introspected scopes when available. */
+  public ValidationResult validateToken(final String accessToken) {
     if (accessToken == null || accessToken.isBlank())
-      return false;
+      return new ValidationResult(false, Set.of());
 
     if ("jwt".equals(LoadedConstants.USER_TOKEN_VALIDATION_MODE))
-      return isJwtTokenValid(accessToken);
+      return new ValidationResult(isJwtTokenValid(accessToken), Set.of());
 
     if (!"introspection".equals(LoadedConstants.USER_TOKEN_VALIDATION_MODE)) {
       LOG.log(Level.WARNING, () -> "Unsupported auth.userTokenValidation.mode: "
               + LoadedConstants.USER_TOKEN_VALIDATION_MODE);
-      return false;
+      return new ValidationResult(false, Set.of());
     }
 
     if (!OAUTH_CONFIG.isOAuth2Configured())
-      return TokenGenerator.getInstance().verifyToken(accessToken);
+      return new ValidationResult(TokenGenerator.getInstance().verifyToken(accessToken), Set.of());
 
     return isTokenValidByIntrospection(accessToken);
   }
 
-  private boolean isTokenValidByIntrospection(final String accessToken) {
+  private ValidationResult isTokenValidByIntrospection(final String accessToken) {
     boolean isTokenValid = false;
+    Set<String> scopes = Set.of();
     final var clientCredentials = "%s:%s".formatted(OAUTH_CONFIG.getClientId(), OAUTH_CONFIG.getClientSecret());
     final var encodedClientCredentials = Base64.getEncoder()
       .encodeToString(clientCredentials.getBytes());
@@ -108,7 +115,11 @@ public class OAuth2TokenValidator {
       if (statusCode == HttpServletResponse.SC_OK) {
         final var jsonNode = MAPPER.readTree(response.body());
 
-        isTokenValid = jsonNode.get("active").asBoolean();
+        JsonNode active = jsonNode.get("active");
+        isTokenValid = active != null && active.asBoolean();
+        if (isTokenValid) {
+          scopes = extractScopes(jsonNode, LoadedConstants.OAUTH_SCOPE_CLAIM_PATH);
+        }
         if (!isTokenValid) {
           LOG.log(Level.WARNING, () -> "OAuth2 token introspection returned inactive token: " + response.body());
         }
@@ -124,7 +135,7 @@ public class OAuth2TokenValidator {
           .interrupt();
     }
 
-    return isTokenValid;
+    return new ValidationResult(isTokenValid, scopes);
   }
 
   private boolean isJwtTokenValid(final String accessToken) {
@@ -138,6 +149,39 @@ public class OAuth2TokenValidator {
       return false;
     }
   }
+
+  static Set<String> extractScopes(JsonNode introspectionResponse, String claimPath) {
+    if (claimPath == null || claimPath.isBlank()) {
+      claimPath = "scope";
+    }
+    JsonNode scopeNode = introspectionResponse;
+    for (String segment : claimPath.split("\\.")) {
+      if (!segment.isBlank()) {
+        scopeNode = scopeNode == null ? null : scopeNode.get(segment);
+      }
+    }
+    if (scopeNode == null || scopeNode.isNull()) {
+      return Set.of();
+    }
+    Set<String> scopes = new LinkedHashSet<>();
+    if (scopeNode.isTextual()) {
+      for (String scope : scopeNode.asText().split("\\s+")) {
+        if (!scope.isBlank()) {
+          scopes.add(scope);
+        }
+      }
+    } else if (scopeNode.isArray()) {
+      for (JsonNode item : scopeNode) {
+        if (item.isTextual() && !item.asText().isBlank()) {
+          scopes.add(item.asText());
+        }
+      }
+    }
+    return scopes;
+  }
+
+  /** Result of token validation and any OAuth scopes obtained from introspection. */
+  public record ValidationResult(boolean valid, Set<String> scopes) {}
 
   private void requireJwtConfig() {
     if (isBlank(LoadedConstants.USER_TOKEN_JWT_ISSUER))
