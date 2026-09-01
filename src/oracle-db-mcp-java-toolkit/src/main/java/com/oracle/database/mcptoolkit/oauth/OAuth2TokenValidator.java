@@ -156,11 +156,15 @@ public class OAuth2TokenValidator {
     }
     JsonNode scopeNode = introspectionResponse;
     for (String segment : claimPath.split("\\.")) {
-      if (!segment.isBlank()) {
-        scopeNode = scopeNode == null ? null : scopeNode.get(segment);
+      if (segment == null || segment.isBlank()) {
+        continue;
       }
+      scopeNode = scopeNode == null ? null : scopeNode.get(segment);
     }
-    if (scopeNode == null || scopeNode.isNull()) {
+    if (scopeNode == null || scopeNode.isMissingNode() || scopeNode.isNull()) {
+      LOG.warning("OAuth token introspection response does not contain a scope claim at '"
+              + claimPath + "'. Configure -Doauth.scopeClaimPath=<claim.path> if your authorization "
+              + "server uses a different claim.");
       return Set.of();
     }
     Set<String> scopes = new LinkedHashSet<>();
@@ -170,14 +174,19 @@ public class OAuth2TokenValidator {
           scopes.add(scope);
         }
       }
-    } else if (scopeNode.isArray()) {
+      return scopes;
+    }
+    if (scopeNode.isArray()) {
       for (JsonNode item : scopeNode) {
-        if (item.isTextual() && !item.asText().isBlank()) {
+        if (item != null && item.isTextual() && !item.asText().isBlank()) {
           scopes.add(item.asText());
         }
       }
+      return scopes;
     }
-    return scopes;
+    LOG.warning("OAuth scope claim at '" + claimPath + "' must be a space-delimited string or an "
+            + "array. Configure -Doauth.scopeClaimPath=<claim.path> if needed.");
+    return Set.of();
   }
 
   /** Result of token validation and any OAuth scopes obtained from introspection. */
