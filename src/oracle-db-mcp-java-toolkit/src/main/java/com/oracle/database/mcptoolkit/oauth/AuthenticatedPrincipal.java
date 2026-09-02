@@ -11,7 +11,7 @@ import com.nimbusds.jwt.SignedJWT;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -40,7 +40,7 @@ public record AuthenticatedPrincipal(
       JWTClaimsSet claims = parseSignedJwtClaims(token);
       if (claims != null) {
         String issuer = text(claims, "iss");
-        String subject = firstText(claims, "sub", "user_id", "username");
+        String subject = text(claims, "sub");
         if (subject != null) {
           return new AuthenticatedPrincipal(
                   fingerprint((issuer == null ? "" : issuer) + "\0" + subject),
@@ -107,16 +107,6 @@ public record AuthenticatedPrincipal(
     return SignedJWT.parse(token).getJWTClaimsSet();
   }
 
-  private static String firstText(JWTClaimsSet claims, String... names) {
-    for (String name : names) {
-      String value = text(claims, name);
-      if (value != null) {
-        return value;
-      }
-    }
-    return null;
-  }
-
   private static String text(JWTClaimsSet claims, String name) {
     Object value = claims.getClaim(name);
     return value instanceof String text && !text.isBlank() ? text : null;
@@ -168,7 +158,7 @@ public record AuthenticatedPrincipal(
 
   private static String fingerprint(String value) {
     try {
-      return Base64.getUrlEncoder().withoutPadding().encodeToString(
+      return HexFormat.of().formatHex(
               MessageDigest.getInstance("SHA-256").digest(value.getBytes(UTF_8)));
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException("SHA-256 is unavailable", e);

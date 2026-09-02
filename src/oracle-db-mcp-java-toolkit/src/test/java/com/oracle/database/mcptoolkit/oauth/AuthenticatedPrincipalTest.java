@@ -41,6 +41,15 @@ class AuthenticatedPrincipalTest {
   }
 
   @Test
+  void usesOnlyStandardSubjectClaimForJwtPrincipals() {
+    AuthenticatedPrincipal principal = AuthenticatedPrincipal.fromValidatedToken(jwt(
+            "{\"iss\":\"https://identity.example\",\"user_id\":\"alice\",\"username\":\"alice\"}"));
+
+    assertNull(principal.issuer());
+    assertNull(principal.subject());
+  }
+
+  @Test
   void keepsOnlyPrincipalInRequestHolderWhenDeepSecIsDisabled() {
     AuthenticatedPrincipal principal = AuthenticatedPrincipal.fromValidatedToken("opaque-token");
     EndUserSecurityContextHolder.setPrincipal(principal);
