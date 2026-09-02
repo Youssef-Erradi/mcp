@@ -8,13 +8,19 @@
 package com.oracle.database.mcptoolkit.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oracle.database.mcptoolkit.LoadedConstants;
 import com.oracle.database.mcptoolkit.ServerConfig;
+import com.oracle.database.mcptoolkit.oauth.AuthenticatedPrincipal;
+import com.oracle.database.mcptoolkit.oauth.EndUserSecurityContextHolder;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import java.sql.*;
+import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,8 +42,20 @@ import static com.oracle.database.mcptoolkit.Utils.*;
  */
 public final class DatabaseOperatorTools {
 
-  // Transaction store (txId -> Connection)
-  private static final Map<String, Connection> TX = new ConcurrentHashMap<>();
+  private static final OwnedTransactionRegistry TX = new OwnedTransactionRegistry(
+          Duration.ofSeconds(LoadedConstants.DB_TRANSACTION_IDLE_TIMEOUT_SECONDS),
+          Duration.ofSeconds(LoadedConstants.DB_TRANSACTION_MAX_LIFETIME_SECONDS),
+          LoadedConstants.DB_MAX_TRANSACTIONS_PER_USER);
+  private static final ScheduledExecutorService TX_CLEANER = Executors.newSingleThreadScheduledExecutor(runnable -> {
+    Thread thread = new Thread(runnable, "database-transaction-cleaner");
+    thread.setDaemon(true);
+    return thread;
+  });
+
+  static {
+    long interval = Math.max(1, Math.min(30, LoadedConstants.DB_TRANSACTION_IDLE_TIMEOUT_SECONDS));
+    TX_CLEANER.scheduleAtFixedRate(TX::cleanupExpired, interval, interval, TimeUnit.SECONDS);
+  }
 
   private DatabaseOperatorTools() {}
 
@@ -70,16 +88,14 @@ public final class DatabaseOperatorTools {
     tools.add(getTransactionTool(config));
     tools.add(getTableManagementTool(config));
     tools.add(getDbPingTool(config));
+    tools.add(getDbSessionContextTool(config));
     tools.add(getDbMetricsTool(config));
     tools.add(getExplainAndExecutePlanTool(config));
 
     // Add shutdown hook to clean up transactions
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-      TX.values().forEach(conn -> {
-        try { if (!conn.getAutoCommit()) conn.rollback(); } catch (Exception ignored) {}
-        try { conn.close(); } catch (Exception ignored) {}
-      });
-      TX.clear();
+      TX.closeAll();
+      TX_CLEANER.shutdownNow();
     }));
 
     return tools;
@@ -279,9 +295,13 @@ public final class DatabaseOperatorTools {
         return switch (action) {
           case "start" -> tryCall(() -> {
             Connection c = openConnection(config, null);
-            c.setAutoCommit(false);
-            String newTxId = UUID.randomUUID().toString();
-            TX.put(newTxId, c);
+            String newTxId;
+            try {
+              newTxId = TX.start(currentTransactionOwner(), c);
+            } catch (Exception e) {
+              try { c.close(); } catch (Exception ignored) {}
+              throw e;
+            }
             return McpSchema.CallToolResult.builder()
                     .structuredContent(Map.of("txId", newTxId))
                     .addTextContent("{\"txId\":\"" + newTxId + "\"}")
@@ -291,34 +311,24 @@ public final class DatabaseOperatorTools {
             if (txId == null) {
               return new McpSchema.CallToolResult("'txId' is required for action=resume", true);
             }
-            if (TX.containsKey(txId)) {
+            if (TX.isActive(currentTransactionOwner(), txId)) {
               return new McpSchema.CallToolResult("{\"ok\":true}", false);
             }
-            return new McpSchema.CallToolResult("Unknown txId", true);
+            return new McpSchema.CallToolResult("Unknown transaction", true);
           });
           case "commit" -> tryCall(() -> {
             if (txId == null) {
               return new McpSchema.CallToolResult("'txId' is required for action=commit", true);
             }
-            Connection c = TX.remove(txId);
-            if (c == null)
-              return new McpSchema.CallToolResult("Unknown txId", true);
-            try (c) {
-              c.commit();
-              return new McpSchema.CallToolResult("{\"ok\":true}", false);
-            }
+            TX.commit(currentTransactionOwner(), txId);
+            return new McpSchema.CallToolResult("{\"ok\":true}", false);
           });
           case "rollback" -> tryCall(() -> {
             if (txId == null) {
               return new McpSchema.CallToolResult("'txId' is required for action=rollback", true);
             }
-            Connection c = TX.remove(txId);
-            if (c == null)
-              return new McpSchema.CallToolResult("Unknown txId", true);
-            try (c) {
-              c.rollback();
-              return new McpSchema.CallToolResult("{\"ok\":true}", false);
-            }
+            TX.rollback(currentTransactionOwner(), txId);
+            return new McpSchema.CallToolResult("{\"ok\":true}", false);
           });
           default -> new McpSchema.CallToolResult(
                   "Unknown action '" + action + "'. Must be one of: start, resume, commit, rollback", true);
@@ -382,6 +392,54 @@ public final class DatabaseOperatorTools {
         }
       }))
     .build();
+  }
+
+  private static McpServerFeatures.SyncToolSpecification getDbSessionContextTool(ServerConfig config) {
+    return McpServerFeatures.SyncToolSpecification.builder()
+      .tool(McpSchema.Tool.builder()
+         .name("db-session-context")
+         .title("DB Session Context")
+         .description("Returns database session identity, activated DeepSec roles, and provider-specific IAM roles or groups for diagnostics.")
+         .inputSchema(ToolSchemas.NO_INPUT_SCHEMA)
+         .build())
+      .callHandler((exchange, callReq) -> tryCall(() -> {
+        try (Connection c = openConnection(config, null);
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("""
+                     SELECT
+                       SYS_CONTEXT('USERENV', 'SESSION_USER') AS SESSION_USER,
+                       SYS_CONTEXT('USERENV', 'CURRENT_USER') AS CURRENT_USER,
+                       ORA_END_USER_CONTEXT.username AS END_USER_CONTEXT_USERNAME
+                     FROM dual
+                     """)) {
+          List<Map<String,Object>> rows = rsToList(rs);
+          Map<String,Object> payload = rows.isEmpty() ? new LinkedHashMap<>() : rows.get(0);
+          payload.put("roles", queryEndUserDataRoles(c));
+          AuthenticatedPrincipal principal = EndUserSecurityContextHolder.getAuthenticatedPrincipal();
+          if (principal != null && principal.isAzureIssuer()) {
+            payload.put("azureRoles", principal.roles());
+          } else if (principal != null && principal.isOciIssuer()) {
+            payload.put("ociGroups", principal.groups());
+          }
+          return McpSchema.CallToolResult.builder()
+                  .structuredContent(payload)
+                  .addTextContent(new ObjectMapper().writeValueAsString(payload))
+                  .build();
+        }
+      }))
+    .build();
+  }
+
+  private static List<String> queryEndUserDataRoles(Connection connection) throws SQLException {
+    List<String> roles = new ArrayList<>();
+    try (Statement statement = connection.createStatement();
+         ResultSet resultSet = statement.executeQuery(
+                 "SELECT role_name FROM v$end_user_data_role ORDER BY role_name")) {
+      while (resultSet.next()) {
+        roles.add(resultSet.getString(1));
+      }
+    }
+    return roles;
   }
 
   private static McpServerFeatures.SyncToolSpecification getDbMetricsTool(ServerConfig config) {
@@ -646,16 +704,25 @@ public final class DatabaseOperatorTools {
   private static class ConnLease implements AutoCloseable {
     final Connection c;
     final boolean closeOnExit;
+    final AutoCloseable release;
 
     ConnLease(Connection c, boolean closeOnExit) {
+      this(c, closeOnExit, null);
+    }
+
+    ConnLease(Connection c, boolean closeOnExit, AutoCloseable release) {
       this.c = c;
       this.closeOnExit = closeOnExit;
+      this.release = release;
     }
 
     @Override
     public void close() {
       if (closeOnExit) {
         try { c.close(); } catch (Exception ignored) {}
+      }
+      if (release != null) {
+        try { release.close(); } catch (Exception ignored) {}
       }
     }
   }
@@ -670,9 +737,19 @@ public final class DatabaseOperatorTools {
       } catch (Exception ignored) {}
       return new DatabaseOperatorTools.ConnLease(c, true);
     }
-    Connection c = TX.get(txId);
-    if (c == null) throw new SQLException("Unknown txId");
-    return new DatabaseOperatorTools.ConnLease(c, false);
+    OwnedTransactionRegistry.Lease lease = TX.acquire(currentTransactionOwner(), txId);
+    return new DatabaseOperatorTools.ConnLease(lease.connection(), false, lease);
+  }
+
+  private static String currentTransactionOwner() throws SQLException {
+    AuthenticatedPrincipal principal = EndUserSecurityContextHolder.getAuthenticatedPrincipal();
+    if (principal != null) {
+      return principal.ownerId();
+    }
+    if (LoadedConstants.AUTH_ENABLED) {
+      throw new SQLException("Authenticated transaction owner is unavailable");
+    }
+    return "unauthenticated";
   }
 
 }

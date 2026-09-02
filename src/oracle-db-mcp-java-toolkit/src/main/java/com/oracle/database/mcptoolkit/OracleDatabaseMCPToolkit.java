@@ -127,7 +127,8 @@ public class OracleDatabaseMCPToolkit {
       ctx.addServletMappingDecoded(
               "/.well-known/oauth-protected-resource", "wellKnownServlet");
 
-      if (OAuth2Configuration.getInstance().isOAuth2Configured() && WebUtils.isRedirectOpenIDToOAuthEnabled()) {
+      if (OAuth2Configuration.getInstance().isAuthorizationServerConfigured()
+              && WebUtils.isRedirectOpenIDToOAuthEnabled()) {
         Tomcat.addServlet(ctx, "redirectOAuthToOpenIDServlet", new RedirectOAuthToOpenIDServlet());
         ctx.addServletMappingDecoded("/.well-known/oauth-authorization-server", "redirectOAuthToOpenIDServlet");
       }
