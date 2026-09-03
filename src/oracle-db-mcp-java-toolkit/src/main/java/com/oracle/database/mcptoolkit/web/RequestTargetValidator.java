@@ -18,6 +18,10 @@ final class RequestTargetValidator {
   private final Set<String> allowedOriginalHosts;
 
   RequestTargetValidator(String configuredHosts) {
+    if (configuredHosts == null || configuredHosts.isBlank()) {
+      allowedOriginalHosts = Set.of();
+      return;
+    }
     allowedOriginalHosts = Arrays.stream(configuredHosts.split(","))
             .map(RequestTargetValidator::normalizeHost)
             .filter(host -> host != null)
@@ -28,6 +32,9 @@ final class RequestTargetValidator {
   }
 
   boolean allows(String origin) {
+    if (allowedOriginalHosts.isEmpty()) {
+      return true;
+    }
     if (origin == null || origin.isBlank()) {
       return false;
     }

@@ -10,6 +10,11 @@ class RequestTargetValidatorTest {
           new RequestTargetValidator("localhost,127.0.0.1,[::1],mcp.example.com");
 
   @Test
+  void allowsRequestsWhenOriginValidationIsNotConfigured() {
+    assertTrue(new RequestTargetValidator(null).allows(null));
+  }
+
+  @Test
   void rejectsRequestWithoutOrigin() {
     assertFalse(validator.allows(null));
   }

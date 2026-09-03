@@ -584,7 +584,7 @@ HTTP transport requires authentication. Start it with `-DenableAuthentication=tr
 
 For local development only, an unauthenticated server can be started with `-Dhttp.allowUnauthenticatedForDevelopment=true`. This is intentionally explicit and emits a warning; do not use it for a remotely reachable service.
 
-`http.allowedOriginalHosts` is a comma-separated list of browser-origin host names only (no scheme or port). The server rejects MCP requests without an `Origin` header and rejects origins outside this allowlist before MCP dispatch:
+`http.allowedOriginalHosts` is optional and disabled by default for compatibility with non-browser MCP clients, proxies, and health checks. When configured, it is a comma-separated list of browser-origin host names only (no scheme or port), and the server rejects MCP requests without an `Origin` header and rejects origins outside this allowlist before MCP dispatch. Configure it for browser-accessible deployments that need DNS-rebinding protection:
 
 ```shell
 -Dhttp.allowedOriginalHosts=mcp.example.com
@@ -838,7 +838,7 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
     <tr>
       <td><code>http.allowedOriginalHosts</code></td>
       <td>No</td>
-      <td>Comma-separated browser-origin host allowlist. Requests without an <code>Origin</code> header or with an untrusted origin are rejected before MCP dispatch. Defaults to <code>localhost,127.0.0.1,[::1]</code>.</td>
+      <td>Optional comma-separated browser-origin host allowlist. When configured, requests without an <code>Origin</code> header or with an untrusted origin are rejected before MCP dispatch. Disabled by default for non-browser client compatibility.</td>
       <td><code>-Dhttp.allowedOriginalHosts=mcp.example.com</code></td>
     </tr>
     <tr>
