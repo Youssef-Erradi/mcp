@@ -28,8 +28,6 @@ import org.apache.tomcat.util.net.SSLHostConfig;
 import org.apache.tomcat.util.net.SSLHostConfigCertificate;
 
 import java.io.File;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.nio.file.FileSystems;
@@ -171,7 +169,6 @@ public class OracleDatabaseMCPToolkit {
       // Create HTTPS connector
       Connector https = new Connector("org.apache.coyote.http11.Http11NioProtocol");
       https.setPort(Integer.parseInt(LoadedConstants.HTTPS_PORT));
-      https.setProperty("address", LoadedConstants.HTTP_BIND_ADDRESS);
       https.setSecure(true);
       https.setScheme("https");
       https.setProperty("SSLEnabled", "true");
@@ -213,16 +210,6 @@ public class OracleDatabaseMCPToolkit {
       LOG.warning("[oracle-db-mcp-toolkit] Starting unauthenticated HTTP transport for development only");
     }
 
-    try {
-      if (!InetAddress.getByName(LoadedConstants.HTTP_BIND_ADDRESS).isLoopbackAddress()
-              && System.getProperty("http.allowedHosts") == null) {
-        throw new IllegalStateException(
-                "A non-loopback http.bindAddress requires an explicit -Dhttp.allowedHosts allowlist");
-      }
-    } catch (UnknownHostException e) {
-      throw new IllegalStateException(
-              "http.bindAddress does not resolve to a local interface: " + LoadedConstants.HTTP_BIND_ADDRESS, e);
-    }
   }
 
   public static ServerConfig getConfig() {

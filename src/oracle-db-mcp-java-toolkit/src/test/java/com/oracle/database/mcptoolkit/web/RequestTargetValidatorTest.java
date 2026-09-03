@@ -10,22 +10,22 @@ class RequestTargetValidatorTest {
           new RequestTargetValidator("localhost,127.0.0.1,[::1],mcp.example.com");
 
   @Test
-  void acceptsAllowedHostWithoutBrowserOrigin() {
-    assertTrue(validator.allows("localhost", null));
-  }
-
-  @Test
-  void rejectsReboundHost() {
-    assertFalse(validator.allows("attacker.example", "https://attacker.example"));
+  void rejectsRequestWithoutOrigin() {
+    assertFalse(validator.allows(null));
   }
 
   @Test
   void rejectsUntrustedBrowserOrigin() {
-    assertFalse(validator.allows("mcp.example.com", "https://attacker.example"));
+    assertFalse(validator.allows("https://attacker.example"));
   }
 
   @Test
-  void acceptsConfiguredPublicHostAndOrigin() {
-    assertTrue(validator.allows("mcp.example.com", "https://mcp.example.com"));
+  void rejectsMalformedOrigin() {
+    assertFalse(validator.allows("not an origin"));
+  }
+
+  @Test
+  void acceptsConfiguredBrowserOrigin() {
+    assertTrue(validator.allows("https://mcp.example.com"));
   }
 }

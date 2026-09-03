@@ -13,31 +13,28 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** Validates browser-facing request targets before MCP request handling. */
+/** Validates browser origins before MCP request handling. */
 final class RequestTargetValidator {
-  private final Set<String> allowedHosts;
+  private final Set<String> allowedOriginalHosts;
 
   RequestTargetValidator(String configuredHosts) {
-    allowedHosts = Arrays.stream(configuredHosts.split(","))
+    allowedOriginalHosts = Arrays.stream(configuredHosts.split(","))
             .map(RequestTargetValidator::normalizeHost)
             .filter(host -> host != null)
             .collect(Collectors.toUnmodifiableSet());
-    if (allowedHosts.isEmpty()) {
-      throw new IllegalArgumentException("http.allowedHosts must contain at least one host");
+    if (allowedOriginalHosts.isEmpty()) {
+      throw new IllegalArgumentException("http.allowedOriginalHosts must contain at least one host");
     }
   }
 
-  boolean allows(String requestHost, String origin) {
-    if (!allowedHosts.contains(normalizeHost(requestHost))) {
-      return false;
-    }
+  boolean allows(String origin) {
     if (origin == null || origin.isBlank()) {
-      return true;
+      return false;
     }
     try {
       URI originUri = URI.create(origin);
       return ("http".equalsIgnoreCase(originUri.getScheme()) || "https".equalsIgnoreCase(originUri.getScheme()))
-              && allowedHosts.contains(normalizeHost(originUri.getHost()));
+              && allowedOriginalHosts.contains(normalizeHost(originUri.getHost()));
     } catch (IllegalArgumentException e) {
       return false;
     }

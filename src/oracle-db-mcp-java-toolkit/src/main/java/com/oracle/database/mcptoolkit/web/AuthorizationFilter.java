@@ -40,7 +40,7 @@ public class AuthorizationFilter implements Filter {
    */
   private static final OAuth2TokenValidator VALIDATOR = new OAuth2TokenValidator();
   private static final RequestTargetValidator REQUEST_TARGET_VALIDATOR =
-          new RequestTargetValidator(LoadedConstants.HTTP_ALLOWED_HOSTS);
+          new RequestTargetValidator(LoadedConstants.HTTP_ALLOWED_ORIGINAL_HOSTS);
 
   /**
    * Intercepts incoming requests to authenticate them based on the presence and validity of an OAuth2 access token.
@@ -60,8 +60,8 @@ public class AuthorizationFilter implements Filter {
     throws IOException, ServletException {
     final HttpServletRequest httpRequest = (HttpServletRequest) request;
     final HttpServletResponse httpResponse = (HttpServletResponse) response;
-    if (!REQUEST_TARGET_VALIDATOR.allows(httpRequest.getServerName(), httpRequest.getHeader("Origin"))) {
-      httpResponse.sendError(HttpServletResponse.SC_FORBIDDEN, "Untrusted request host or origin");
+    if (!REQUEST_TARGET_VALIDATOR.allows(httpRequest.getHeader("Origin"))) {
+      httpResponse.sendError(HttpServletResponse.SC_FORBIDDEN, "Untrusted request origin");
       return;
     }
     if (OAuth2Configuration.getInstance().isAuthenticationEnabled()) {

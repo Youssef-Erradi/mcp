@@ -580,15 +580,14 @@ In streamable HTTP mode, you run the server as a standalone HTTP service and poi
 
 ##### HTTP transport security
 
-HTTP transport requires authentication. Start it with `-DenableAuthentication=true` and configure OAuth2, or use the generated development token described below. The server binds to `127.0.0.1` by default and accepts MCP requests only for `localhost`, `127.0.0.1`, or `::1`.
+HTTP transport requires authentication. Start it with `-DenableAuthentication=true` and configure OAuth2, or use the generated development token described below.
 
 For local development only, an unauthenticated server can be started with `-Dhttp.allowUnauthenticatedForDevelopment=true`. This is intentionally explicit and emits a warning; do not use it for a remotely reachable service.
 
-To expose a server outside the local machine, configure both the bind address and the expected public host names. `http.allowedHosts` is a comma-separated list of host names only (no scheme or port) and is used to reject untrusted `Host` and browser `Origin` headers before MCP dispatch:
+`http.allowedOriginalHosts` is a comma-separated list of browser-origin host names only (no scheme or port). The server rejects MCP requests without an `Origin` header and rejects origins outside this allowlist before MCP dispatch:
 
 ```shell
--Dhttp.bindAddress=0.0.0.0 \
--Dhttp.allowedHosts=mcp.example.com
+-Dhttp.allowedOriginalHosts=mcp.example.com
 ```
 
 Use a reverse proxy or firewall appropriate for your deployment. `allowedHosts` is a separate CORS setting for OAuth discovery metadata; it does not control MCP request admission.
@@ -837,16 +836,10 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>45451</code></td>
     </tr>
     <tr>
-      <td><code>http.bindAddress</code></td>
+      <td><code>http.allowedOriginalHosts</code></td>
       <td>No</td>
-      <td>Address for the HTTP transport connector. Defaults to <code>127.0.0.1</code>. A non-loopback address requires an explicit <code>http.allowedHosts</code> setting.</td>
-      <td><code>-Dhttp.bindAddress=0.0.0.0</code></td>
-    </tr>
-    <tr>
-      <td><code>http.allowedHosts</code></td>
-      <td>No</td>
-      <td>Comma-separated MCP request host allowlist. Browser requests with an untrusted <code>Host</code> or <code>Origin</code> are rejected before MCP dispatch. Defaults to <code>localhost,127.0.0.1,[::1]</code>.</td>
-      <td><code>-Dhttp.allowedHosts=mcp.example.com</code></td>
+      <td>Comma-separated browser-origin host allowlist. Requests without an <code>Origin</code> header or with an untrusted origin are rejected before MCP dispatch. Defaults to <code>localhost,127.0.0.1,[::1]</code>.</td>
+      <td><code>-Dhttp.allowedOriginalHosts=mcp.example.com</code></td>
     </tr>
     <tr>
       <td><code>http.allowUnauthenticatedForDevelopment</code></td>
@@ -976,8 +969,7 @@ podman run --rm \
     -Dhttps.port=45451 \
     -DcertificatePath=[path/to/certificate] \
     -DcertificatePassword=[password] \
-    -Dhttp.bindAddress=0.0.0.0 \
-    -Dhttp.allowedHosts=your-public-hostname \
+    -Dhttp.allowedOriginalHosts=your-public-hostname \
     -DenableAuthentication=true \
     -Dtools=get-jdbc-stats,get-jdbc-queries \
     -Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service \
@@ -1007,8 +999,7 @@ podman run --rm \
   -e JAVA_TOOL_OPTIONS="\
     -Dtransport=http \
     -Dhttps.port=45451 \
-    -Dhttp.bindAddress=0.0.0.0 \
-    -Dhttp.allowedHosts=your-public-hostname \
+    -Dhttp.allowedOriginalHosts=your-public-hostname \
     -DenableAuthentication=true \
     -Dtools=get-jdbc-stats,get-jdbc-queries \
     -Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service \
