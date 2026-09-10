@@ -12,6 +12,7 @@ import com.oracle.database.mcptoolkit.config.ConfigRoot;
 import com.oracle.database.mcptoolkit.config.DataSourceConfig;
 import com.oracle.database.mcptoolkit.config.ToolConfig;
 import com.oracle.database.mcptoolkit.config.ToolParameterConfig;
+import com.oracle.database.mcptoolkit.oauth.EndUserSecurityContextHolder;
 import com.oracle.database.mcptoolkit.tools.*;
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.server.McpSyncServer;
@@ -374,6 +375,11 @@ public class Utils {
     pds.setConnectionProperty("oracle.jdbc.vectorDefaultGetObjectType", "double[]");
     pds.setConnectionProperty("oracle.jdbc.jsonDefaultGetObjectType", "java.lang.String");
     pds.setConnectionProperty("oracle.net.keepAlive", "true");
+    if (LoadedConstants.DEEPSEC_ENABLED) {
+      pds.setConnectionProperty(
+              "oracle.jdbc.provider.endUserSecurityContext",
+              new EndUserSecurityContextHolder().getName());
+    }
     pds.setValidateConnectionOnBorrow(true);
     return pds;
   }

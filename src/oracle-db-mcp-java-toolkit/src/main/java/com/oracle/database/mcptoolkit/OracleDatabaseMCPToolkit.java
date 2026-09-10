@@ -128,7 +128,8 @@ public class OracleDatabaseMCPToolkit {
       ctx.addServletMappingDecoded(
               "/.well-known/oauth-protected-resource", "wellKnownServlet");
 
-      if (OAuth2Configuration.getInstance().isOAuth2Configured() && WebUtils.isRedirectOpenIDToOAuthEnabled()) {
+      if (OAuth2Configuration.getInstance().isAuthorizationServerConfigured()
+              && WebUtils.isRedirectOpenIDToOAuthEnabled()) {
         Tomcat.addServlet(ctx, "redirectOAuthToOpenIDServlet", new RedirectOAuthToOpenIDServlet());
         ctx.addServletMappingDecoded("/.well-known/oauth-authorization-server", "redirectOAuthToOpenIDServlet");
       }
@@ -204,7 +205,7 @@ public class OracleDatabaseMCPToolkit {
     if (!OAuth2Configuration.getInstance().isAuthenticationEnabled()) {
       if (!LoadedConstants.HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT) {
         throw new IllegalStateException(
-                "HTTP transport requires authentication. Set -DenableAuthentication=true or, for local "
+                "HTTP transport requires authentication. Set -Dauth.enabled=true or, for local "
                         + "development only, -Dhttp.allowUnauthenticatedForDevelopment=true");
       }
       LOG.warning("[oracle-db-mcp-toolkit] Starting unauthenticated HTTP transport for development only");
