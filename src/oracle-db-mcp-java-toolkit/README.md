@@ -1166,7 +1166,10 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
 
 If you enable **only** the Log Analyzer tools, you can omit <code>db.url</code>.
 
-<i>* Note:</i> DeepSec support does not replace database login credentials. On this branch, database connections still use `db.user` and `db.password` or datasource-specific YAML credentials.
+<i>* Note:</i> If you’re using token-based authentication (e.g., IAM tokens) or a centralized configuration provided via the JARs you place in `-Dojdbc.ext.dir`,
+you can omit `db.user` and `db.password`. The driver will pick up credentials and security settings from those extensions.
+
+When DeepSec is enabled, its end-user token provides database end-user context; it does not replace the base database authentication configured through `db.user`/`db.password`, a datasource, or the driver-managed mechanism above.
 
 ---
 
