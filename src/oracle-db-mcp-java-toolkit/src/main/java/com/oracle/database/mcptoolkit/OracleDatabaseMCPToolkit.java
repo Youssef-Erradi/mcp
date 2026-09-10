@@ -97,6 +97,7 @@ public class OracleDatabaseMCPToolkit {
    */
   private static McpSyncServer startHttpServer() {
     try {
+      validateHttpSecurityConfiguration();
       HttpServletStreamableServerTransportProvider transport =
         HttpServletStreamableServerTransportProvider.builder()
           .objectMapper(new ObjectMapper())
@@ -197,6 +198,18 @@ public class OracleDatabaseMCPToolkit {
     } catch (Exception e) {
       throw new RuntimeException("Failed to enable HTTPS on Tomcat", e);
     }
+  }
+
+  private static void validateHttpSecurityConfiguration() {
+    if (!OAuth2Configuration.getInstance().isAuthenticationEnabled()) {
+      if (!LoadedConstants.HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT) {
+        throw new IllegalStateException(
+                "HTTP transport requires authentication. Set -DenableAuthentication=true or, for local "
+                        + "development only, -Dhttp.allowUnauthenticatedForDevelopment=true");
+      }
+      LOG.warning("[oracle-db-mcp-toolkit] Starting unauthenticated HTTP transport for development only");
+    }
+
   }
 
   public static ServerConfig getConfig() {
