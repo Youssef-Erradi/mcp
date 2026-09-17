@@ -53,6 +53,7 @@ public class OracleDatabaseMCPToolkit {
 
 
   static {
+    LoadedConstants.initialize(Utils.loadRuntimeConfig());
     config = Utils.loadConfig();
   }
 
@@ -145,10 +146,15 @@ public class OracleDatabaseMCPToolkit {
       filterMap.addURLPattern("/mcp/*");
       ctx.addFilterMap(filterMap);
 
-      if (LoadedConstants.HTTPS_PORT == null || LoadedConstants.KEYSTORE_PATH == null || LoadedConstants.KEYSTORE_PASSWORD == null)
-        throw new RuntimeException("SSL setup failed: HTTPS port, Keystore path or password not specified");
-
-      enableHttps(tomcat);
+      if (hasHttpsConfiguration()) {
+        enableHttps(tomcat);
+      } else if (hasPartialHttpsConfiguration()) {
+        throw new RuntimeException(
+            "SSL setup failed: HTTPS port, Keystore path, and password must be specified together");
+      } else {
+        throw new RuntimeException(
+            "SSL setup failed: HTTPS port, Keystore path, or password not specified");
+      }
 
       tomcat.start();
 
@@ -157,6 +163,18 @@ public class OracleDatabaseMCPToolkit {
     } catch (Exception e) {
       throw new RuntimeException("Failed to start HTTP/streamable server", e);
     }
+  }
+
+  private static boolean hasHttpsConfiguration() {
+    return LoadedConstants.HTTPS_PORT != null
+        && LoadedConstants.KEYSTORE_PATH != null
+        && LoadedConstants.KEYSTORE_PASSWORD != null;
+  }
+
+  private static boolean hasPartialHttpsConfiguration() {
+    return LoadedConstants.HTTPS_PORT != null
+        || LoadedConstants.KEYSTORE_PATH != null
+        || LoadedConstants.KEYSTORE_PASSWORD != null;
   }
 
   /**

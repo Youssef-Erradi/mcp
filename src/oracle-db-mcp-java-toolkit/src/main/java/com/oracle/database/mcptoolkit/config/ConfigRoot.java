@@ -7,7 +7,6 @@
 
 package com.oracle.database.mcptoolkit.config;
 
-import java.util.List;
 import java.util.Map;
 
 /**
