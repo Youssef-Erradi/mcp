@@ -310,9 +310,6 @@ public class Utils {
     } catch (Exception e) {
       LOG.log(Level.SEVERE, e.getMessage(), e);
     }
-    if (yamlConfig != null) {
-      yamlConfig.substituteEnvVars();
-    }
     if (yamlConfig == null) {
       config = ServerConfig.fromSystemProperties();
     } else {

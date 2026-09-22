@@ -125,6 +125,8 @@ public final class ServerConfig {
         entry.getValue().name = entry.getKey();
       }
     }
+    if (configRoot != null) configRoot.substituteEnvVars();
+
     Set<String> expandedTools = expandToolsFilter(rawTools, configRoot);
     Set<String> disabledToolsetMembers = collectDisabledToolsetMembers(configRoot);
 
