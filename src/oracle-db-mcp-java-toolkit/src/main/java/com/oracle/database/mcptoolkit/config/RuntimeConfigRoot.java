@@ -8,6 +8,7 @@
 package com.oracle.database.mcptoolkit.config;
 
 import com.oracle.database.mcptoolkit.EnvSubstitutor;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -15,12 +16,43 @@ import java.util.Map;
  * This intentionally uses a separate YAML file from custom tool and datasource configuration.
  */
 public class RuntimeConfigRoot {
-  public Map<String, String> systemProperties;
+  private final Map<String, String> properties = new LinkedHashMap<>();
+
+  /** Creates a runtime configuration by flattening its nested YAML sections into property names. */
+  public static RuntimeConfigRoot fromYaml(Map<?, ?> yaml) {
+    RuntimeConfigRoot config = new RuntimeConfigRoot();
+    if (yaml != null) config.flatten(null, yaml);
+    return config;
+  }
+
+  /** Creates a runtime configuration from already-flattened properties. */
+  public static RuntimeConfigRoot fromProperties(Map<String, String> properties) {
+    RuntimeConfigRoot config = new RuntimeConfigRoot();
+    if (properties != null) config.properties.putAll(properties);
+    return config;
+  }
+
+  public Map<String, String> properties() {
+    return properties;
+  }
 
   /** Substitutes environment variables in runtime settings. */
   public void substituteEnvVars() {
-    if (systemProperties != null) {
-      systemProperties.replaceAll((key, value) -> EnvSubstitutor.substituteEnvVars(value));
+    properties.replaceAll((key, value) -> EnvSubstitutor.substituteEnvVars(value));
+  }
+
+  private void flatten(String prefix, Map<?, ?> section) {
+    for (Map.Entry<?, ?> entry : section.entrySet()) {
+      if (!(entry.getKey() instanceof String key) || key.isBlank()) {
+        throw new IllegalArgumentException("Runtime configuration keys must be non-blank strings");
+      }
+      String propertyName = prefix == null ? key : prefix + "." + key;
+      Object value = entry.getValue();
+      if (value instanceof Map<?, ?> nestedSection) {
+        flatten(propertyName, nestedSection);
+      } else if (value != null) {
+        properties.put(propertyName, value.toString());
+      }
     }
   }
 }

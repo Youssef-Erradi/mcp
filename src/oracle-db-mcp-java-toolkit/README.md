@@ -105,15 +105,17 @@ would otherwise be JVM system properties in a separate runtime file selected wit
 `-DruntimeConfigFile`:
 
 ```yaml
-systemProperties:
-  db.url: "jdbc:oracle:thin:@//db.example.com:1521/ORCLPDB1"
-  db.user: "${DB_USER}"
-  db.password: "${DB_PASSWORD}"
-  transport: "http"
-  https.port: "45451"
-  certificatePath: "/run/secrets/server.p12"
-  certificatePassword: "${CERTIFICATE_PASSWORD}"
-  auth.enabled: "true"
+transport: "http"
+https:
+  port: "45451"
+certificatePath: "/run/secrets/server.p12"
+certificatePassword: "${CERTIFICATE_PASSWORD}"
+db:
+  url: "jdbc:oracle:thin:@//db.example.com:1521/ORCLPDB1"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+auth:
+  enabled: "true"
 ```
 
 Start with both files when custom tools or datasource definitions are needed:
@@ -126,9 +128,10 @@ java \
 ```
 
 `runtimeConfigFile` and `configFile` are bootstrap properties and remain on the command line. A
-non-blank `-D` property overrides the matching value in `systemProperties`. See
+non-blank `-D` property overrides the matching YAML value. Nested sections map to the equivalent
+property name: for example, `db.url` is written as `db: { url: ... }`. See
 [`runtime-config.example.yaml`](runtime-config.example.yaml) for all supported runtime settings. Values
-in `systemProperties` are also made available to JDBC and UCP, so existing driver properties can move
+in the runtime file are also made available to JDBC and UCP, so existing driver properties can move
 to the runtime file without adding toolkit-specific handling.
 
 Toolsets can be enabled from `-Dtools` alongside individual tools. For example:
@@ -1054,7 +1057,7 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
     <tr>
       <td><code>runtimeConfigFile</code></td>
       <td>No</td>
-      <td>Path to a separate YAML file containing runtime settings under <code>systemProperties</code>. Individual JVM properties override its values.</td>
+      <td>Path to a separate YAML file containing nested runtime settings. Individual JVM properties override its values.</td>
       <td>/opt/mcp/runtime-config.yaml</td>
     </tr>
     <tr>

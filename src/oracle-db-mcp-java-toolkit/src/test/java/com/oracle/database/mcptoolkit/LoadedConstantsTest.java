@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.oracle.database.mcptoolkit.config.RuntimeConfigRoot;
 import java.io.StringReader;
-import java.util.HashMap;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
@@ -32,12 +32,9 @@ class LoadedConstantsTest {
 
   @Test
   void loadsRuntimeSettingsFromYamlProperties() {
-    RuntimeConfigRoot root = new RuntimeConfigRoot();
-    root.systemProperties = new HashMap<>();
-    root.systemProperties.put("transport", "HTTP");
-    root.systemProperties.put("db.user", "yaml-user");
-    root.systemProperties.put("db.password", "yaml-password");
-    root.systemProperties.put("editTools.requireScope", "false");
+    RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
+        "transport", "HTTP", "db.user", "yaml-user", "db.password", "yaml-password",
+        "editTools.requireScope", "false"));
 
     LoadedConstants.initialize(root);
 
@@ -49,10 +46,8 @@ class LoadedConstantsTest {
 
   @Test
   void systemPropertiesOverrideYamlProperties() {
-    RuntimeConfigRoot root = new RuntimeConfigRoot();
-    root.systemProperties = new HashMap<>();
-    root.systemProperties.put("transport", "stdio");
-    root.systemProperties.put("db.user", "yaml-user");
+    RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
+        "transport", "stdio", "db.user", "yaml-user"));
     System.setProperty("transport", "http");
     System.setProperty("db.user", "system-user");
 
@@ -63,15 +58,16 @@ class LoadedConstantsTest {
   }
 
   @Test
-  void parsesSystemPropertiesFromYaml() {
-    RuntimeConfigRoot root = new Yaml().loadAs(new StringReader("""
-        systemProperties:
-          transport: http
-          https.port: \"45451\"
-          db.user: ${DB_USER}
-        """), RuntimeConfigRoot.class);
+  void parsesNestedRuntimeSettingsFromYaml() {
+    RuntimeConfigRoot root = RuntimeConfigRoot.fromYaml(new Yaml().load(new StringReader("""
+        transport: http
+        https:
+          port: \"45451\"
+        db:
+          user: ${DB_USER}
+        """)));
 
-    root.systemProperties.put("db.user", "yaml-user");
+    root.properties().put("db.user", "yaml-user");
     LoadedConstants.initialize(root);
 
     assertEquals("http", LoadedConstants.TRANSPORT_KIND);
@@ -81,13 +77,10 @@ class LoadedConstantsTest {
 
   @Test
   void loadsHttpSecurityAndDeepSecSettingsFromYamlProperties() {
-    RuntimeConfigRoot root = new RuntimeConfigRoot();
-    root.systemProperties = new HashMap<>();
-    root.systemProperties.put("http.allowedOriginalHosts", "mcp.example.com");
-    root.systemProperties.put("http.allowUnauthenticatedForDevelopment", "true");
-    root.systemProperties.put("auth.enabled", "true");
-    root.systemProperties.put("deepsec.enabled", "true");
-    root.systemProperties.put("deepsec.databaseToken.tokenEndpoint", "https://identity.example.com/token");
+    RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
+        "http.allowedOriginalHosts", "mcp.example.com",
+        "http.allowUnauthenticatedForDevelopment", "true", "auth.enabled", "true",
+        "deepsec.enabled", "true", "deepsec.databaseToken.tokenEndpoint", "https://identity.example.com/token"));
 
     LoadedConstants.initialize(root);
 
@@ -100,9 +93,8 @@ class LoadedConstantsTest {
 
   @Test
   void exposesYamlPropertiesToJdbcAndUcp() {
-    RuntimeConfigRoot root = new RuntimeConfigRoot();
-    root.systemProperties = new HashMap<>();
-    root.systemProperties.put("oracle.ucp.createConnectionInBorrowThread", "true");
+    RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(
+        Map.of("oracle.ucp.createConnectionInBorrowThread", "true"));
 
     LoadedConstants.initialize(root);
 

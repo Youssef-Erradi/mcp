@@ -1,49 +1,65 @@
 # Start with: java -DruntimeConfigFile=/path/to/runtime-config.yaml -jar oracle-db-mcp-toolkit.jar
-# Any non-blank -D property overrides the matching systemProperties entry below.
+# Any non-blank -D property overrides the matching YAML setting below.
 # Keep this deployment-specific file out of source control and provide secrets through environment variables.
-systemProperties:
-  transport: "http"
-  # HTTPS transport configuration.
-  https.port: "45451"
-  certificatePath: "/path/to/certificate.p12"
-  certificatePassword: "${CERTIFICATE_PASSWORD}"
-  http.allowedOriginalHosts: "mcp.example.com"
-  http.allowUnauthenticatedForDevelopment: "false"
+transport: "http"
+https:
+  port: "45451"
+certificatePath: "/path/to/certificate.p12"
+certificatePassword: "${CERTIFICATE_PASSWORD}"
+http:
+  allowedOriginalHosts: "mcp.example.com"
+  allowUnauthenticatedForDevelopment: "false"
 
-  tools: "read-query,write-query"
-  ingestRootDir: "/data/ingest"
-  ingestMaxFileSizeMb: "100"
-  db.url: "jdbc:oracle:thin:@//db.example.com:1521/ORCLPDB1"
-  db.user: "${DB_USER}"
-  db.password: "${DB_PASSWORD}"
-  db.transactionIdleTimeoutSeconds: "120"
-  db.transactionMaxLifetimeSeconds: "300"
-  db.maxTransactionsPerUser: "4"
-  ojdbc.ext.dir: "/opt/oracle/extensions"
-  oracle.ucp.createConnectionInBorrowThread: "true"
+tools: "read-query,write-query"
+ingestRootDir: "/data/ingest"
+ingestMaxFileSizeMb: "100"
+db:
+  url: "jdbc:oracle:thin:@//db.example.com:1521/ORCLPDB1"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+  transactionIdleTimeoutSeconds: "120"
+  transactionMaxLifetimeSeconds: "300"
+  maxTransactionsPerUser: "4"
+ojdbc:
+  ext:
+    dir: "/opt/oracle/extensions"
+oracle:
+  ucp:
+    createConnectionInBorrowThread: "true"
 
-  allowedHosts: "*"
-  auth.openIdDiscoveryRedirectEnabled: "false"
-  auth.enabled: "true"
-  auth.authorizationServer: "https://identity.example.com/tenant-id"
-  auth.userTokenValidation.mode: "jwt"
-  auth.userTokenValidation.introspection.endpoint: "https://identity.example.com/introspect"
-  auth.userTokenValidation.introspection.clientId: "${INTROSPECTION_CLIENT_ID}"
-  auth.userTokenValidation.introspection.clientSecret: "${INTROSPECTION_CLIENT_SECRET}"
-  auth.userTokenValidation.jwt.issuer: "https://identity.example.com/tenant-id/"
-  auth.userTokenValidation.jwt.jwksUri: "https://identity.example.com/tenant-id/discovery/keys"
-  auth.userTokenValidation.jwt.audience: "api://mcp-server"
-  auth.userTokenValidation.jwt.jwksCacheSeconds: "600"
-  oauth.scopeClaimPath: "scope"
-  editTools.requireScope: "true"
-  listCredentials.requireScope: "true"
-  mcp.oauth.scopes: "openid"
-  mcp.oauth.resourceUrl: "https://mcp.example.com/mcp"
+allowedHosts: "*"
+auth:
+  openIdDiscoveryRedirectEnabled: "false"
+  enabled: "true"
+  authorizationServer: "https://identity.example.com/tenant-id"
+  userTokenValidation:
+    mode: "jwt"
+    introspection:
+      endpoint: "https://identity.example.com/introspect"
+      clientId: "${INTROSPECTION_CLIENT_ID}"
+      clientSecret: "${INTROSPECTION_CLIENT_SECRET}"
+    jwt:
+      issuer: "https://identity.example.com/tenant-id/"
+      jwksUri: "https://identity.example.com/tenant-id/discovery/keys"
+      audience: "api://mcp-server"
+      jwksCacheSeconds: "600"
+oauth:
+  scopeClaimPath: "scope"
+editTools:
+  requireScope: "true"
+listCredentials:
+  requireScope: "true"
+mcp:
+  oauth:
+    scopes: "openid"
+    resourceUrl: "https://mcp.example.com/mcp"
 
-  deepsec.enabled: "false"
+deepsec:
+  enabled: "false"
   # Set staticValue instead of the endpoint/client credentials when a database token is supplied directly.
-  deepsec.databaseToken.staticValue: "${DEEPSEC_DATABASE_TOKEN}"
-  deepsec.databaseToken.tokenEndpoint: "https://identity.example.com/tenant-id/oauth2/v2.0/token"
-  deepsec.databaseToken.clientId: "${DATABASE_TOKEN_CLIENT_ID}"
-  deepsec.databaseToken.clientSecret: "${DATABASE_TOKEN_CLIENT_SECRET}"
-  deepsec.databaseToken.scope: "api://database/.default"
+  databaseToken:
+    staticValue: "${DEEPSEC_DATABASE_TOKEN}"
+    tokenEndpoint: "https://identity.example.com/tenant-id/oauth2/v2.0/token"
+    clientId: "${DATABASE_TOKEN_CLIENT_ID}"
+    clientSecret: "${DATABASE_TOKEN_CLIENT_SECRET}"
+    scope: "api://database/.default"

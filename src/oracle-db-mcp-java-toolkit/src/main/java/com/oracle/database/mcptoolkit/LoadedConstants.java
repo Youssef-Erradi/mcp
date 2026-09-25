@@ -81,7 +81,7 @@ public final class LoadedConstants {
    * @param configRoot parsed runtime YAML root, or {@code null} when no YAML file was supplied
    */
   public static void initialize(RuntimeConfigRoot configRoot) {
-    Map<String, String> yamlProperties = configRoot == null ? null : configRoot.systemProperties;
+    Map<String, String> yamlProperties = configRoot == null ? null : configRoot.properties();
     applyYamlSystemProperties(yamlProperties);
     TRANSPORT_KIND = value("transport", yamlProperties, "stdio").trim().toLowerCase();
     HTTPS_PORT = value("https.port", yamlProperties, null);

@@ -334,7 +334,11 @@ public class Utils {
       return null;
     }
     try (Reader reader = Files.newBufferedReader(Paths.get(runtimeConfigFilePath))) {
-      RuntimeConfigRoot runtimeConfig = new Yaml().loadAs(reader, RuntimeConfigRoot.class);
+      Object parsedYaml = new Yaml().load(reader);
+      if (parsedYaml != null && !(parsedYaml instanceof Map<?, ?>)) {
+        throw new IllegalArgumentException("Runtime config root must be a YAML mapping");
+      }
+      RuntimeConfigRoot runtimeConfig = RuntimeConfigRoot.fromYaml((Map<?, ?>) parsedYaml);
       if (runtimeConfig != null) runtimeConfig.substituteEnvVars();
       return runtimeConfig;
     } catch (Exception e) {
