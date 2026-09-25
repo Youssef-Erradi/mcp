@@ -98,6 +98,42 @@ To enable YAML configuration, launch the server with:
 java -DconfigFile=/path/to/config.yaml -jar <mcp-server>.jar
 ```
 
+### Runtime configuration in a separate YAML file
+
+Keep `configFile` for `dataSources`, custom `tools`, and `toolsets`. Put deployment settings that
+would otherwise be JVM system properties in a separate runtime file selected with
+`-DruntimeConfigFile`:
+
+```yaml
+transport: "http"
+https:
+  port: "45451"
+certificatePath: "/run/secrets/server.p12"
+certificatePassword: "${CERTIFICATE_PASSWORD}"
+db:
+  url: "jdbc:oracle:thin:@//db.example.com:1521/ORCLPDB1"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+auth:
+  enabled: "true"
+```
+
+Start with both files when custom tools or datasource definitions are needed:
+
+```bash
+java \
+  -DruntimeConfigFile=/path/to/runtime-config.yaml \
+  -DconfigFile=/path/to/config.yaml \
+  -jar <mcp-server>.jar
+```
+
+`runtimeConfigFile` and `configFile` are bootstrap properties and remain on the command line. A
+non-blank `-D` property overrides the matching YAML value. Nested sections map to the equivalent
+property name: for example, `db.url` is written as `db: { url: ... }`. See
+[`runtime-config.example.yaml`](runtime-config.example.yaml) for all supported runtime settings. Values
+in the runtime file are also made available to JDBC and UCP, so existing driver properties can move
+to the runtime file without adding toolkit-specific handling.
+
 Toolsets can be enabled from `-Dtools` alongside individual tools. For example:
 - `-Dtools=reporting` enables all tools in the `reporting` toolset
 - `-Dtools=reporting,explain` enables your `reporting` set plus the built-in `explain` toolset (see below)
@@ -1017,6 +1053,12 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td>No</td>
       <td>Path to a YAML file defining <code>datasources</code> and <code>tools</code>. Required if you intend to use the <code>edit-tools</code> admin tool to persist changes.</td>
       <td>/opt/mcp/config.yaml</td>
+    </tr>
+    <tr>
+      <td><code>runtimeConfigFile</code></td>
+      <td>No</td>
+      <td>Path to a separate YAML file containing nested runtime settings. Individual JVM properties override its values.</td>
+      <td>/opt/mcp/runtime-config.yaml</td>
     </tr>
     <tr>
       <td><code>auth.enabled</code></td>
