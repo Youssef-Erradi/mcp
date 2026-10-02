@@ -8,6 +8,8 @@
 package com.oracle.database.mcptoolkit;
 
 import com.oracle.database.mcptoolkit.config.RuntimeConfigRoot;
+import com.oracle.database.mcptoolkit.config.RuntimePropertyNames;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** Provides runtime settings loaded from system properties and an optional YAML file. */
@@ -72,7 +74,21 @@ public final class LoadedConstants {
   public static String OJDBC_EXT_DIR;
 
   static {
+    promoteCanonicalSystemProperties();
     initialize(null);
+  }
+
+  /** Makes the public, section-based property names available to existing internal consumers. */
+  private static void promoteCanonicalSystemProperties() {
+    Map<String, String> properties = new LinkedHashMap<>();
+    System.getProperties().forEach((key, value) -> properties.put(key.toString(), value.toString()));
+    properties.forEach((name, value) -> {
+      String legacyName = RuntimePropertyNames.legacyName(name);
+      if (!legacyName.equals(name)
+          && (System.getProperty(legacyName) == null || System.getProperty(legacyName).isBlank())) {
+        System.setProperty(legacyName, value);
+      }
+    });
   }
 
   /**
@@ -81,6 +97,7 @@ public final class LoadedConstants {
    * @param configRoot parsed runtime YAML root, or {@code null} when no YAML file was supplied
    */
   public static void initialize(RuntimeConfigRoot configRoot) {
+    promoteCanonicalSystemProperties();
     Map<String, String> yamlProperties = configRoot == null ? null : configRoot.properties();
     applyYamlSystemProperties(yamlProperties);
     TRANSPORT_KIND = value("transport", yamlProperties, "stdio").trim().toLowerCase();

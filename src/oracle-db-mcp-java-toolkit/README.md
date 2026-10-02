@@ -105,16 +105,20 @@ would otherwise be JVM system properties in a separate runtime file selected wit
 `-DruntimeConfigFile`:
 
 ```yaml
-transport: "http"
-https:
-  port: "45451"
-certificatePath: "/run/secrets/server.p12"
-certificatePassword: "${CERTIFICATE_PASSWORD}"
-db:
+network:
+  transport: "http"
+  http:
+    port: "8080"
+    allowedOriginalHosts: "mcp.example.com"
+  https:
+    port: "45451"
+    certificatePath: "/run/secrets/server.p12"
+    certificatePassword: "${CERTIFICATE_PASSWORD}"
+database:
   url: "jdbc:oracle:thin:@//db.example.com:1521/ORCLPDB1"
   user: "${DB_USER}"
   password: "${DB_PASSWORD}"
-auth:
+userAuth:
   enabled: "true"
 ```
 
@@ -129,7 +133,8 @@ java \
 
 `runtimeConfigFile` and `configFile` are bootstrap properties and remain on the command line. A
 non-blank `-D` property overrides the matching YAML value. Nested sections map to the equivalent
-property name: for example, `db.url` is written as `db: { url: ... }`. See
+property name: for example, `database.url` maps to `db.url`, and `network.http.port` maps to
+`http.port`. See
 [`runtime-config.example.yaml`](runtime-config.example.yaml) for all supported runtime settings. Values
 in the runtime file are also made available to JDBC and UCP, so existing driver properties can move
 to the runtime file without adding toolkit-specific handling.
@@ -792,8 +797,6 @@ Required properties:
 * `-Ddeepsec.databaseToken.clientId`: Client ID used to obtain the database-scoped DeepSec token.
 * `-Ddeepsec.databaseToken.clientSecret`: Client secret used to obtain the database-scoped DeepSec token.
 * `-Ddeepsec.databaseToken.scope`: Database resource scope for the DeepSec/database token, for example `OracleDBDB_ACCESS_SCOPE`.
-* `-Doracle.ucp.createConnectionInBorrowThread=true`: Ensures UCP creates a new physical connection in the request thread that is borrowing it, so the current DeepSec context is available during connection creation.
-
 Optional properties:
 
 * `-Ddeepsec.databaseToken.staticValue`: Static database-scoped token for local smoke tests. Prefer `deepsec.databaseToken.tokenEndpoint` plus client credentials for normal use.
@@ -831,7 +834,6 @@ java \
     -Ddb.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
     -Ddb.user=mcp_app_user \
     -Ddb.password='your-db-password' \
-    -Doracle.ucp.createConnectionInBorrowThread=true \
     -Dtransport=http \
     -Dhttps.port=8080 \
     -DcertificatePath=/path/to/your-certificate.p12 \

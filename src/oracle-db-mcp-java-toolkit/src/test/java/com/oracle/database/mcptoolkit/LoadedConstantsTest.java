@@ -21,9 +21,9 @@ class LoadedConstantsTest {
   @AfterEach
   void resetConstants() {
     for (String property : new String[] {
-        "transport", "https.port", "db.user", "db.password", "http.allowedOriginalHosts",
+        "transport", "https.port", "db.user", "db.password", "database.user", "http.allowedOriginalHosts",
         "http.allowUnauthenticatedForDevelopment", "auth.enabled", "editTools.requireScope", "deepsec.enabled",
-        "deepsec.databaseToken.tokenEndpoint", "oracle.ucp.createConnectionInBorrowThread"
+        "deepsec.databaseToken.tokenEndpoint"
     }) {
       System.clearProperty(property);
     }
@@ -49,7 +49,7 @@ class LoadedConstantsTest {
     RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
         "transport", "stdio", "db.user", "yaml-user"));
     System.setProperty("transport", "http");
-    System.setProperty("db.user", "system-user");
+    System.setProperty("database.user", "system-user");
 
     LoadedConstants.initialize(root);
 
@@ -60,19 +60,34 @@ class LoadedConstantsTest {
   @Test
   void parsesNestedRuntimeSettingsFromYaml() {
     RuntimeConfigRoot root = RuntimeConfigRoot.fromYaml(new Yaml().load(new StringReader("""
-        transport: http
-        https:
-          port: \"45451\"
-        db:
+        network:
+          transport: http
+          http:
+            allowedOriginalHosts: mcp.example.com
+          https:
+            port: \"45451\"
+        database:
           user: ${DB_USER}
+        toolSelection:
+          enabled: read-query
+        userAuth:
+          enabled: true
+          allowedCorsHosts: mcp.example.com
+        deepDataSecurity:
+          enabled: true
         """)));
 
     root.properties().put("db.user", "yaml-user");
     LoadedConstants.initialize(root);
 
     assertEquals("http", LoadedConstants.TRANSPORT_KIND);
+    assertEquals("mcp.example.com", LoadedConstants.HTTP_ALLOWED_ORIGINAL_HOSTS);
     assertEquals("45451", LoadedConstants.HTTPS_PORT);
     assertEquals("yaml-user", LoadedConstants.DB_USER);
+    assertEquals("read-query", LoadedConstants.TOOLS);
+    assertEquals(true, LoadedConstants.AUTH_ENABLED);
+    assertEquals("mcp.example.com", LoadedConstants.ALLOWED_HOSTS);
+    assertEquals(true, LoadedConstants.DEEPSEC_ENABLED);
   }
 
   @Test
@@ -91,13 +106,4 @@ class LoadedConstantsTest {
     assertEquals("https://identity.example.com/token", LoadedConstants.DEEPSEC_DATABASE_TOKEN_ENDPOINT);
   }
 
-  @Test
-  void exposesYamlPropertiesToJdbcAndUcp() {
-    RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(
-        Map.of("oracle.ucp.createConnectionInBorrowThread", "true"));
-
-    LoadedConstants.initialize(root);
-
-    assertEquals("true", System.getProperty("oracle.ucp.createConnectionInBorrowThread"));
-  }
 }

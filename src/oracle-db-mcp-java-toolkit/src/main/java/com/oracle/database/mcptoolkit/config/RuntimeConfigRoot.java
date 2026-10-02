@@ -51,7 +51,7 @@ public class RuntimeConfigRoot {
       if (value instanceof Map<?, ?> nestedSection) {
         flatten(propertyName, nestedSection);
       } else if (value != null) {
-        properties.put(propertyName, value.toString());
+        properties.put(RuntimePropertyNames.legacyName(propertyName), value.toString());
       }
     }
   }
