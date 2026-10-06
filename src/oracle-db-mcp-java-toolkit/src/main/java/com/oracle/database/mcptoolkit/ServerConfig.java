@@ -145,13 +145,13 @@ public final class ServerConfig {
 
     boolean needDb = wantsAnyDbToolsExpanded(expandedTools);
 
-    if (needDb && (dbUrl == null || dbUrl.isBlank())) {
+    if (needDb && !Utils.hasDefaultDataSource() && (dbUrl == null || dbUrl.isBlank())) {
       throw new IllegalStateException("Missing required db.url in both system properties and YAML config");
     }
-    if (needDb && (dbUser == null || dbUser.isBlank())) {
+    if (needDb && !Utils.hasDefaultDataSource() && (dbUser == null || dbUser.isBlank())) {
       throw new IllegalStateException("Missing required db.user in both system properties and YAML config");
     }
-    if (needDb && (dbPass == null || dbPass.length == 0)) {
+    if (needDb && !Utils.hasDefaultDataSource() && (dbPass == null || dbPass.length == 0)) {
       throw new IllegalStateException("Missing required db.password in both system properties and YAML config");
     }
     return new ServerConfig(dbUrl, dbUser, dbPass, expandedTools, disabledToolsetMembers, sources, toolsMap, editToolsPolicy);
@@ -170,7 +170,7 @@ public final class ServerConfig {
     boolean needDb = wantsAnyDbToolsExpanded(expanded);
 
     String dbUrl = LoadedConstants.DB_URL;
-    if (needDb && (dbUrl == null || dbUrl.isBlank())) {
+    if (needDb && !Utils.hasDefaultDataSource() && (dbUrl == null || dbUrl.isBlank())) {
       throw new IllegalStateException("Missing required system property: db.url");
     }
 

@@ -581,7 +581,9 @@ _Note: The `mcp-admin` toolset is focused on protected runtime configuration and
 mvn clean package
 ```
 
-The created jar can be found in `target/oracle-db-mcp-toolkit-1.0.0.jar`.
+The standalone executable jar is created at
+`standalone/target/oracle-db-mcp-toolkit-1.0.0.jar`. The reusable Java library is
+`core/target/oracle-db-mcp-toolkit-core-1.0.0.jar`.
 
 ### 4.3. Choose a transport mode (stdio vs HTTP)
 
@@ -778,7 +780,73 @@ java \
 
 Use introspection instead when your authorization server issues opaque tokens, when central revocation checks are required on every request, or when your provider requires resource servers to call introspection. DeepSec is an exception: it requires the end-user access token to be a signed JWT with `iss` and `sub` claims, even if the toolkit also introspects that JWT.
 
-### 4.5. Oracle Deep Data Security Support
+### 4.5. Embed in a Spring Boot application
+
+The optional Spring Boot starter runs the toolkit on the application's existing servlet
+container. It does not launch a second Tomcat process or make an MCP client call to a separate
+toolkit deployment.
+
+Add the starter dependency:
+
+```xml
+<dependency>
+  <groupId>com.oracle.database.mcptoolkit</groupId>
+  <artifactId>oracle-db-mcp-toolkit-spring-boot-starter</artifactId>
+  <version>1.0.0</version>
+</dependency>
+```
+
+Enable it in `application.yaml`. Runtime settings are placed under `oracle.mcp.settings` and use
+the same property names as the standalone launcher, expressed as nested YAML. Keep secrets in
+environment variables or your normal Spring secret-management mechanism.
+
+```yaml
+oracle:
+  mcp:
+    enabled: true
+    settings:
+      tools: database-operator
+      db:
+        url: ${DB_URL}
+        user: ${DB_USER}
+        password: ${DB_PASSWORD}
+      auth:
+        enabled: true
+        authorizationServer: https://identity.example.com
+        userTokenValidation:
+          mode: jwt
+          jwt:
+            issuer: https://issuer.example.com/
+            jwksUri: https://identity.example.com/.well-known/jwks.json
+            audience: oracle-db-mcp
+      mcp:
+        oauth:
+          scopes: openid
+```
+
+The starter registers the authenticated Streamable HTTP endpoint at `/mcp`, the protected-resource
+metadata endpoint at `/.well-known/oauth-protected-resource`, and the toolkit authorization filter.
+When `settings.auth.openIdDiscoveryRedirectEnabled` is `true`, it also exposes
+`/.well-known/oauth-authorization-server`, matching the standalone server behavior.
+It uses the application-managed web-server lifecycle. For local-only development, set
+`settings.http.allowUnauthenticatedForDevelopment: true`; production deployments must set
+`settings.auth.enabled: true` and configure token validation.
+
+When the application has exactly one Spring `DataSource` (or a primary one), the starter uses it as
+the toolkit's default datasource. In that case the `settings.db.url`, `settings.db.user`, and
+`settings.db.password` entries may be omitted. YAML-defined named datasources remain supported and
+continue to be owned by the toolkit.
+
+For Deep Data Security, a Spring-managed UCP datasource is configured with the toolkit's
+end-user-security-context provider automatically. If the application supplies another pool type,
+configure that pool to pass the equivalent Oracle JDBC connection property, or let the toolkit
+create its own UCP datasource from `settings.db`.
+
+The core toolkit is intentionally framework-neutral. The standalone executable remains available,
+and the starter is optional for Spring Boot servlet applications. A JVM supports one active toolkit
+runtime configuration and server.
+
+### 4.6. Oracle Deep Data Security Support
 
 Deep Data Security support lets Oracle Database enforce authorization using the authenticated MCP end user's token. The MCP server still opens database connections with the configured database username and password; DeepSec adds end-user context to those database operations through the Oracle JDBC `EndUserSecurityContextProvider` SPI.
 
@@ -889,7 +957,7 @@ mvn -Ddb.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
 
 The default one-user run also injects a distinct authenticated owner and verifies it is rejected before the held JDBC connection is touched, so a second OCI account is not required to test transaction ownership. For the stronger identity-provider check, set `DEEPSEC_IT_TWO_USERS=true`. The test then opens a second login, verifies the two token subjects differ, executes as A, then B, then A again on a pool limited to one physical connection, and uses the real user B owner for the denial check. OCI may bind the browser session to user A even with `prompt=login`; log out first or open the printed user-B authorization URL in an incognito/separate browser profile. Set `DEEPSEC_IT_USER_B_ROLES` only when that account has mapped roles that should also be asserted. Role names are compared exactly as the database returns them. `DEEPSEC_IT_DATABASE_ACCESS_TOKEN` remains available as an optional override; otherwise the test fetches the application database token through the configured `deepsec.*` provider.
 
-### 4.6. Enabling Authentication without OAuth2
+### 4.7. Enabling Authentication without OAuth2
 
 _Note: This mode is used only for development and testing purposes._
 

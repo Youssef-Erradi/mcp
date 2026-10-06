@@ -16,7 +16,7 @@ RUN useradd -r -u 10001 appuser && \
 WORKDIR /app
 USER appuser
 
-COPY --from=builder /src/target/oracle-db-mcp-toolkit-*.jar \
+COPY --from=builder /src/standalone/target/oracle-db-mcp-toolkit-*.jar \
      /app/oracle-db-mcp-toolkit.jar
 
 ENTRYPOINT ["java", "-jar", "/app/oracle-db-mcp-toolkit.jar"]
