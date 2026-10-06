@@ -40,8 +40,8 @@ public final class LoadedConstants {
   public static int DB_TRANSACTION_MAX_LIFETIME_SECONDS;
   public static int DB_MAX_TRANSACTIONS_PER_USER;
 
-  /** OAuth config. */
-  public static String ALLOWED_HOSTS;
+  /** User authentication and OAuth discovery config. */
+  public static String CORS_ALLOWED_ORIGIN;
   public static String AUTH_OPENID_DISCOVERY_REDIRECT_ENABLED;
   public static boolean AUTH_ENABLED;
   public static final String ORACLE_DB_TOOLKIT_AUTH_TOKEN = System.getenv("ORACLE_DB_TOOLKIT_AUTH_TOKEN");
@@ -102,7 +102,7 @@ public final class LoadedConstants {
     DB_TRANSACTION_IDLE_TIMEOUT_SECONDS = integer("database.transactions.idleTimeoutSeconds", yamlProperties, systemProperties, 120);
     DB_TRANSACTION_MAX_LIFETIME_SECONDS = integer("database.transactions.maxLifetimeSeconds", yamlProperties, systemProperties, 300);
     DB_MAX_TRANSACTIONS_PER_USER = integer("database.transactions.maxPerUser", yamlProperties, systemProperties, 4);
-    ALLOWED_HOSTS = value("userAuth.allowedCorsHosts", yamlProperties, systemProperties, "*");
+    CORS_ALLOWED_ORIGIN = value("network.cors.allowedOrigin", yamlProperties, systemProperties, "*");
     AUTH_OPENID_DISCOVERY_REDIRECT_ENABLED = value("userAuth.openIdDiscoveryRedirectEnabled", yamlProperties, systemProperties, "false");
     AUTH_ENABLED = bool("userAuth.enabled", yamlProperties, systemProperties, false);
     AUTH_AUTHORIZATION_SERVER = value("userAuth.authorizationServer", yamlProperties, systemProperties, null);
@@ -110,8 +110,8 @@ public final class LoadedConstants {
     USER_TOKEN_INTROSPECTION_CLIENT_ID = value("userAuth.tokenValidation.introspection.clientId", yamlProperties, systemProperties, null);
     USER_TOKEN_INTROSPECTION_CLIENT_SECRET = value("userAuth.tokenValidation.introspection.clientSecret", yamlProperties, systemProperties, null);
     OAUTH_SCOPE_CLAIM_PATH = value("userAuth.tokenValidation.introspection.scopeClaimPath", yamlProperties, systemProperties, "scope");
-    EDIT_TOOLS_REQUIRE_SCOPE = bool("userAuth.editTools.requireScope", yamlProperties, systemProperties, true);
-    LIST_CREDENTIALS_REQUIRE_SCOPE = bool("userAuth.listCredentials.requireScope", yamlProperties, systemProperties, true);
+    EDIT_TOOLS_REQUIRE_SCOPE = bool("toolAuthorization.editTools.requireScope", yamlProperties, systemProperties, true);
+    LIST_CREDENTIALS_REQUIRE_SCOPE = bool("toolAuthorization.listCredentials.requireScope", yamlProperties, systemProperties, true);
     USER_TOKEN_VALIDATION_MODE = value("userAuth.tokenValidation.mode", yamlProperties, systemProperties, "introspection").trim().toLowerCase();
     USER_TOKEN_JWT_ISSUER = value("userAuth.tokenValidation.jwt.issuer", yamlProperties, systemProperties, null);
     USER_TOKEN_JWT_JWKS_URI = value("userAuth.tokenValidation.jwt.jwksUri", yamlProperties, systemProperties, null);

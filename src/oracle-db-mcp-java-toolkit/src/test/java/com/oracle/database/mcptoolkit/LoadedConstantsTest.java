@@ -24,7 +24,8 @@ class LoadedConstantsTest {
         "transport", "network.transport", "https.port", "network.https.port", "db.user", "database.user",
         "db.password", "database.password", "http.allowedOriginalHosts", "network.http.allowedOriginalHosts",
         "http.allowUnauthenticatedForDevelopment", "network.http.allowUnauthenticatedForDevelopment",
-        "auth.enabled", "userAuth.enabled", "editTools.requireScope", "userAuth.editTools.requireScope",
+        "auth.enabled", "userAuth.enabled", "allowedHosts", "network.cors.allowedOrigin",
+        "editTools.requireScope", "toolAuthorization.editTools.requireScope",
         "deepsec.enabled", "deepDataSecurity.enabled", "deepsec.databaseToken.tokenEndpoint",
         "deepDataSecurity.databaseToken.tokenEndpoint"
     }) {
@@ -37,7 +38,7 @@ class LoadedConstantsTest {
   void loadsRuntimeSettingsFromYamlProperties() {
     RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
         "network.transport", "HTTP", "database.user", "yaml-user", "database.password", "yaml-password",
-        "userAuth.editTools.requireScope", "false"));
+        "toolAuthorization.editTools.requireScope", "false"));
 
     LoadedConstants.initialize(root);
 
@@ -69,13 +70,14 @@ class LoadedConstantsTest {
             allowedOriginalHosts: mcp.example.com
           https:
             port: \"45451\"
+          cors:
+            allowedOrigin: mcp.example.com
         database:
           user: ${DB_USER}
         toolSelection:
           enabled: read-query
         userAuth:
           enabled: true
-          allowedCorsHosts: mcp.example.com
         deepDataSecurity:
           enabled: true
         """)));
@@ -89,7 +91,7 @@ class LoadedConstantsTest {
     assertEquals("yaml-user", LoadedConstants.DB_USER);
     assertEquals("read-query", LoadedConstants.TOOLS);
     assertEquals(true, LoadedConstants.AUTH_ENABLED);
-    assertEquals("mcp.example.com", LoadedConstants.ALLOWED_HOSTS);
+    assertEquals("mcp.example.com", LoadedConstants.CORS_ALLOWED_ORIGIN);
     assertEquals(true, LoadedConstants.DEEPSEC_ENABLED);
   }
 

@@ -7,6 +7,8 @@ network:
     port: "8080"
     # Set this explicitly for production HTTP deployments.
     allowedOriginalHosts: "mcp.example.com"
+  cors:
+    allowedOrigin: "*"
   https:
     port: "45451"
     certificatePath: "/path/to/certificate.p12"
@@ -31,7 +33,6 @@ database:
 userAuth:
   openIdDiscoveryRedirectEnabled: "false"
   enabled: "true"
-  allowedCorsHosts: "*"
   authorizationServer: "https://identity.example.com/tenant-id"
   tokenValidation:
     mode: "jwt"
@@ -44,6 +45,12 @@ userAuth:
       jwksUri: "https://identity.example.com/tenant-id/discovery/keys"
       audience: "api://mcp-server"
       jwksCacheSeconds: "600"
+
+toolAuthorization:
+  editTools:
+    requireScope: "true"
+  listCredentials:
+    requireScope: "true"
 mcp:
   oauth:
     scopes: "openid"
