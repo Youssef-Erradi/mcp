@@ -28,7 +28,10 @@ public class RuntimeConfigRoot {
   /** Creates a runtime configuration from already-flattened properties. */
   public static RuntimeConfigRoot fromProperties(Map<String, String> properties) {
     RuntimeConfigRoot config = new RuntimeConfigRoot();
-    if (properties != null) config.properties.putAll(properties);
+    if (properties != null) {
+      properties.forEach((name, value) ->
+          config.properties.put(RuntimePropertyNames.canonicalName(name), value));
+    }
     return config;
   }
 
@@ -51,7 +54,7 @@ public class RuntimeConfigRoot {
       if (value instanceof Map<?, ?> nestedSection) {
         flatten(propertyName, nestedSection);
       } else if (value != null) {
-        properties.put(RuntimePropertyNames.legacyName(propertyName), value.toString());
+        properties.put(RuntimePropertyNames.canonicalName(propertyName), value.toString());
       }
     }
   }

@@ -9,43 +9,45 @@ package com.oracle.database.mcptoolkit.config;
 
 import java.util.Map;
 
-/** Resolves public runtime property names to the legacy names used by existing consumers. */
+/** Resolves legacy runtime property names to the canonical public names. */
 public final class RuntimePropertyNames {
-  private static final Map<String, String> LEGACY_NAMES = Map.ofEntries(
-      Map.entry("network.transport", "transport"),
-      Map.entry("network.http.port", "http.port"),
-      Map.entry("network.http.allowedOriginalHosts", "http.allowedOriginalHosts"),
-      Map.entry("network.http.allowUnauthenticatedForDevelopment", "http.allowUnauthenticatedForDevelopment"),
-      Map.entry("network.https.port", "https.port"),
-      Map.entry("network.https.certificatePath", "certificatePath"),
-      Map.entry("network.https.certificatePassword", "certificatePassword"),
-      Map.entry("toolSelection.enabled", "tools"),
-      Map.entry("dataIngestion.rootDirectory", "ingestRootDir"),
-      Map.entry("dataIngestion.maxFileSizeMb", "ingestMaxFileSizeMb"),
-      Map.entry("database.url", "db.url"), Map.entry("database.user", "db.user"),
-      Map.entry("database.password", "db.password"),
-      Map.entry("database.transactions.idleTimeoutSeconds", "db.transactionIdleTimeoutSeconds"),
-      Map.entry("database.transactions.maxLifetimeSeconds", "db.transactionMaxLifetimeSeconds"),
-      Map.entry("database.transactions.maxPerUser", "db.maxTransactionsPerUser"),
-      Map.entry("database.jdbc.extensionsDirectory", "ojdbc.ext.dir"),
-      Map.entry("userAuth.enabled", "auth.enabled"), Map.entry("userAuth.allowedCorsHosts", "allowedHosts"),
-      Map.entry("userAuth.authorizationServer", "auth.authorizationServer"),
-      Map.entry("userAuth.openIdDiscoveryRedirectEnabled", "auth.openIdDiscoveryRedirectEnabled"),
-      Map.entry("userAuth.tokenValidation.introspection.scopeClaimPath", "oauth.scopeClaimPath"),
-      Map.entry("deepDataSecurity.enabled", "deepsec.enabled"),
-      Map.entry("deepDataSecurity.databaseToken.staticValue", "deepsec.databaseToken.staticValue"),
-      Map.entry("deepDataSecurity.databaseToken.tokenEndpoint", "deepsec.databaseToken.tokenEndpoint"),
-      Map.entry("deepDataSecurity.databaseToken.clientId", "deepsec.databaseToken.clientId"),
-      Map.entry("deepDataSecurity.databaseToken.clientSecret", "deepsec.databaseToken.clientSecret"),
-      Map.entry("deepDataSecurity.databaseToken.scope", "deepsec.databaseToken.scope"));
+  private static final Map<String, String> CANONICAL_NAMES = Map.ofEntries(
+      Map.entry("transport", "network.transport"),
+      Map.entry("http.port", "network.http.port"),
+      Map.entry("http.allowedOriginalHosts", "network.http.allowedOriginalHosts"),
+      Map.entry("http.allowUnauthenticatedForDevelopment", "network.http.allowUnauthenticatedForDevelopment"),
+      Map.entry("https.port", "network.https.port"),
+      Map.entry("certificatePath", "network.https.certificatePath"),
+      Map.entry("certificatePassword", "network.https.certificatePassword"),
+      Map.entry("tools", "toolSelection.enabled"),
+      Map.entry("ingestRootDir", "dataIngestion.rootDirectory"),
+      Map.entry("ingestMaxFileSizeMb", "dataIngestion.maxFileSizeMb"),
+      Map.entry("db.url", "database.url"), Map.entry("db.user", "database.user"),
+      Map.entry("db.password", "database.password"),
+      Map.entry("db.transactionIdleTimeoutSeconds", "database.transactions.idleTimeoutSeconds"),
+      Map.entry("db.transactionMaxLifetimeSeconds", "database.transactions.maxLifetimeSeconds"),
+      Map.entry("db.maxTransactionsPerUser", "database.transactions.maxPerUser"),
+      Map.entry("ojdbc.ext.dir", "database.jdbc.extensionsDirectory"),
+      Map.entry("auth.enabled", "userAuth.enabled"), Map.entry("allowedHosts", "userAuth.allowedCorsHosts"),
+      Map.entry("auth.authorizationServer", "userAuth.authorizationServer"),
+      Map.entry("auth.openIdDiscoveryRedirectEnabled", "userAuth.openIdDiscoveryRedirectEnabled"),
+      Map.entry("oauth.scopeClaimPath", "userAuth.tokenValidation.introspection.scopeClaimPath"),
+      Map.entry("editTools.requireScope", "userAuth.editTools.requireScope"),
+      Map.entry("listCredentials.requireScope", "userAuth.listCredentials.requireScope"),
+      Map.entry("deepsec.enabled", "deepDataSecurity.enabled"),
+      Map.entry("deepsec.databaseToken.staticValue", "deepDataSecurity.databaseToken.staticValue"),
+      Map.entry("deepsec.databaseToken.tokenEndpoint", "deepDataSecurity.databaseToken.tokenEndpoint"),
+      Map.entry("deepsec.databaseToken.clientId", "deepDataSecurity.databaseToken.clientId"),
+      Map.entry("deepsec.databaseToken.clientSecret", "deepDataSecurity.databaseToken.clientSecret"),
+      Map.entry("deepsec.databaseToken.scope", "deepDataSecurity.databaseToken.scope"));
 
   private RuntimePropertyNames() {}
 
-  public static String legacyName(String name) {
-    String mapped = LEGACY_NAMES.get(name);
+  public static String canonicalName(String name) {
+    String mapped = CANONICAL_NAMES.get(name);
     if (mapped != null) return mapped;
-    if (name.startsWith("userAuth.tokenValidation.")) {
-      return "auth.userTokenValidation." + name.substring("userAuth.tokenValidation.".length());
+    if (name.startsWith("auth.userTokenValidation.")) {
+      return "userAuth.tokenValidation." + name.substring("auth.userTokenValidation.".length());
     }
     return name;
   }

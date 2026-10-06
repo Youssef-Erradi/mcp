@@ -74,92 +74,79 @@ public final class LoadedConstants {
   public static String OJDBC_EXT_DIR;
 
   static {
-    promoteCanonicalSystemProperties();
     initialize(null);
   }
 
-  /** Makes the public, section-based property names available to existing internal consumers. */
-  private static void promoteCanonicalSystemProperties() {
-    Map<String, String> properties = new LinkedHashMap<>();
-    System.getProperties().forEach((key, value) -> properties.put(key.toString(), value.toString()));
-    properties.forEach((name, value) -> {
-      String legacyName = RuntimePropertyNames.legacyName(name);
-      if (!legacyName.equals(name)
-          && (System.getProperty(legacyName) == null || System.getProperty(legacyName).isBlank())) {
-        System.setProperty(legacyName, value);
-      }
-    });
-  }
-
   /**
-   * Applies YAML runtime settings. A non-blank JVM system property always takes precedence.
+   * Applies canonical runtime settings. A non-blank JVM system property always takes precedence.
    *
    * @param configRoot parsed runtime YAML root, or {@code null} when no YAML file was supplied
    */
   public static void initialize(RuntimeConfigRoot configRoot) {
-    promoteCanonicalSystemProperties();
     Map<String, String> yamlProperties = configRoot == null ? null : configRoot.properties();
-    applyYamlSystemProperties(yamlProperties);
-    TRANSPORT_KIND = value("transport", yamlProperties, "stdio").trim().toLowerCase();
-    HTTPS_PORT = value("https.port", yamlProperties, null);
-    KEYSTORE_PATH = value("certificatePath", yamlProperties, null);
-    KEYSTORE_PASSWORD = value("certificatePassword", yamlProperties, null);
-    HTTP_ALLOWED_ORIGINAL_HOSTS = value("http.allowedOriginalHosts", yamlProperties, null);
+    Map<String, String> systemProperties = canonicalSystemProperties();
+    TRANSPORT_KIND = value("network.transport", yamlProperties, systemProperties, "stdio").trim().toLowerCase();
+    HTTPS_PORT = value("network.https.port", yamlProperties, systemProperties, null);
+    KEYSTORE_PATH = value("network.https.certificatePath", yamlProperties, systemProperties, null);
+    KEYSTORE_PASSWORD = value("network.https.certificatePassword", yamlProperties, systemProperties, null);
+    HTTP_ALLOWED_ORIGINAL_HOSTS = value("network.http.allowedOriginalHosts", yamlProperties, systemProperties, null);
     HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT = bool(
-        "http.allowUnauthenticatedForDevelopment", yamlProperties, false);
-    TOOLS = value("tools", yamlProperties, null);
-    INGEST_ROOT_DIR = value("ingestRootDir", yamlProperties, null);
-    INGEST_MAX_FILE_SIZE_MB = value("ingestMaxFileSizeMb", yamlProperties, null);
-    DB_URL = value("db.url", yamlProperties, null);
-    DB_USER = value("db.user", yamlProperties, null);
-    String dbPassword = value("db.password", yamlProperties, null);
+        "network.http.allowUnauthenticatedForDevelopment", yamlProperties, systemProperties, false);
+    TOOLS = value("toolSelection.enabled", yamlProperties, systemProperties, null);
+    INGEST_ROOT_DIR = value("dataIngestion.rootDirectory", yamlProperties, systemProperties, null);
+    INGEST_MAX_FILE_SIZE_MB = value("dataIngestion.maxFileSizeMb", yamlProperties, systemProperties, null);
+    DB_URL = value("database.url", yamlProperties, systemProperties, null);
+    DB_USER = value("database.user", yamlProperties, systemProperties, null);
+    String dbPassword = value("database.password", yamlProperties, systemProperties, null);
     DB_PASSWORD = dbPassword == null ? null : dbPassword.toCharArray();
-    DB_TRANSACTION_IDLE_TIMEOUT_SECONDS = integer("db.transactionIdleTimeoutSeconds", yamlProperties, 120);
-    DB_TRANSACTION_MAX_LIFETIME_SECONDS = integer("db.transactionMaxLifetimeSeconds", yamlProperties, 300);
-    DB_MAX_TRANSACTIONS_PER_USER = integer("db.maxTransactionsPerUser", yamlProperties, 4);
-    ALLOWED_HOSTS = value("allowedHosts", yamlProperties, "*");
-    AUTH_OPENID_DISCOVERY_REDIRECT_ENABLED = value("auth.openIdDiscoveryRedirectEnabled", yamlProperties, "false");
-    AUTH_ENABLED = bool("auth.enabled", yamlProperties, false);
-    AUTH_AUTHORIZATION_SERVER = value("auth.authorizationServer", yamlProperties, null);
-    USER_TOKEN_INTROSPECTION_ENDPOINT = value("auth.userTokenValidation.introspection.endpoint", yamlProperties, null);
-    USER_TOKEN_INTROSPECTION_CLIENT_ID = value("auth.userTokenValidation.introspection.clientId", yamlProperties, null);
-    USER_TOKEN_INTROSPECTION_CLIENT_SECRET = value("auth.userTokenValidation.introspection.clientSecret", yamlProperties, null);
-    OAUTH_SCOPE_CLAIM_PATH = value("oauth.scopeClaimPath", yamlProperties, "scope");
-    EDIT_TOOLS_REQUIRE_SCOPE = bool("editTools.requireScope", yamlProperties, true);
-    LIST_CREDENTIALS_REQUIRE_SCOPE = bool("listCredentials.requireScope", yamlProperties, true);
-    USER_TOKEN_VALIDATION_MODE = value("auth.userTokenValidation.mode", yamlProperties, "introspection").trim().toLowerCase();
-    USER_TOKEN_JWT_ISSUER = value("auth.userTokenValidation.jwt.issuer", yamlProperties, null);
-    USER_TOKEN_JWT_JWKS_URI = value("auth.userTokenValidation.jwt.jwksUri", yamlProperties, null);
-    USER_TOKEN_JWT_AUDIENCE = value("auth.userTokenValidation.jwt.audience", yamlProperties, null);
-    USER_TOKEN_JWT_JWKS_CACHE_SECONDS = longValue("auth.userTokenValidation.jwt.jwksCacheSeconds", yamlProperties, 600);
-    MCP_OAUTH_SCOPES = value("mcp.oauth.scopes", yamlProperties, "openid");
-    MCP_OAUTH_RESOURCE_URL = value("mcp.oauth.resourceUrl", yamlProperties, null);
-    DEEPSEC_ENABLED = bool("deepsec.enabled", yamlProperties, false);
-    DEEPSEC_DATABASE_TOKEN_STATIC_VALUE = value("deepsec.databaseToken.staticValue", yamlProperties, null);
-    DEEPSEC_DATABASE_TOKEN_ENDPOINT = value("deepsec.databaseToken.tokenEndpoint", yamlProperties, null);
-    DEEPSEC_DATABASE_TOKEN_CLIENT_ID = value("deepsec.databaseToken.clientId", yamlProperties, null);
-    DEEPSEC_DATABASE_TOKEN_CLIENT_SECRET = value("deepsec.databaseToken.clientSecret", yamlProperties, null);
-    DEEPSEC_DATABASE_TOKEN_SCOPE = value("deepsec.databaseToken.scope", yamlProperties, null);
-    OJDBC_EXT_DIR = value("ojdbc.ext.dir", yamlProperties, null);
+    DB_TRANSACTION_IDLE_TIMEOUT_SECONDS = integer("database.transactions.idleTimeoutSeconds", yamlProperties, systemProperties, 120);
+    DB_TRANSACTION_MAX_LIFETIME_SECONDS = integer("database.transactions.maxLifetimeSeconds", yamlProperties, systemProperties, 300);
+    DB_MAX_TRANSACTIONS_PER_USER = integer("database.transactions.maxPerUser", yamlProperties, systemProperties, 4);
+    ALLOWED_HOSTS = value("userAuth.allowedCorsHosts", yamlProperties, systemProperties, "*");
+    AUTH_OPENID_DISCOVERY_REDIRECT_ENABLED = value("userAuth.openIdDiscoveryRedirectEnabled", yamlProperties, systemProperties, "false");
+    AUTH_ENABLED = bool("userAuth.enabled", yamlProperties, systemProperties, false);
+    AUTH_AUTHORIZATION_SERVER = value("userAuth.authorizationServer", yamlProperties, systemProperties, null);
+    USER_TOKEN_INTROSPECTION_ENDPOINT = value("userAuth.tokenValidation.introspection.endpoint", yamlProperties, systemProperties, null);
+    USER_TOKEN_INTROSPECTION_CLIENT_ID = value("userAuth.tokenValidation.introspection.clientId", yamlProperties, systemProperties, null);
+    USER_TOKEN_INTROSPECTION_CLIENT_SECRET = value("userAuth.tokenValidation.introspection.clientSecret", yamlProperties, systemProperties, null);
+    OAUTH_SCOPE_CLAIM_PATH = value("userAuth.tokenValidation.introspection.scopeClaimPath", yamlProperties, systemProperties, "scope");
+    EDIT_TOOLS_REQUIRE_SCOPE = bool("userAuth.editTools.requireScope", yamlProperties, systemProperties, true);
+    LIST_CREDENTIALS_REQUIRE_SCOPE = bool("userAuth.listCredentials.requireScope", yamlProperties, systemProperties, true);
+    USER_TOKEN_VALIDATION_MODE = value("userAuth.tokenValidation.mode", yamlProperties, systemProperties, "introspection").trim().toLowerCase();
+    USER_TOKEN_JWT_ISSUER = value("userAuth.tokenValidation.jwt.issuer", yamlProperties, systemProperties, null);
+    USER_TOKEN_JWT_JWKS_URI = value("userAuth.tokenValidation.jwt.jwksUri", yamlProperties, systemProperties, null);
+    USER_TOKEN_JWT_AUDIENCE = value("userAuth.tokenValidation.jwt.audience", yamlProperties, systemProperties, null);
+    USER_TOKEN_JWT_JWKS_CACHE_SECONDS = longValue("userAuth.tokenValidation.jwt.jwksCacheSeconds", yamlProperties, systemProperties, 600);
+    MCP_OAUTH_SCOPES = value("mcp.oauth.scopes", yamlProperties, systemProperties, "openid");
+    MCP_OAUTH_RESOURCE_URL = value("mcp.oauth.resourceUrl", yamlProperties, systemProperties, null);
+    DEEPSEC_ENABLED = bool("deepDataSecurity.enabled", yamlProperties, systemProperties, false);
+    DEEPSEC_DATABASE_TOKEN_STATIC_VALUE = value("deepDataSecurity.databaseToken.staticValue", yamlProperties, systemProperties, null);
+    DEEPSEC_DATABASE_TOKEN_ENDPOINT = value("deepDataSecurity.databaseToken.tokenEndpoint", yamlProperties, systemProperties, null);
+    DEEPSEC_DATABASE_TOKEN_CLIENT_ID = value("deepDataSecurity.databaseToken.clientId", yamlProperties, systemProperties, null);
+    DEEPSEC_DATABASE_TOKEN_CLIENT_SECRET = value("deepDataSecurity.databaseToken.clientSecret", yamlProperties, systemProperties, null);
+    DEEPSEC_DATABASE_TOKEN_SCOPE = value("deepDataSecurity.databaseToken.scope", yamlProperties, systemProperties, null);
+    OJDBC_EXT_DIR = value("database.jdbc.extensionsDirectory", yamlProperties, systemProperties, null);
   }
 
-  /**
-   * Makes runtime-YAML properties available to components such as JDBC and UCP that read JVM
-   * properties directly. Existing non-blank JVM properties retain precedence.
-   */
-  private static void applyYamlSystemProperties(Map<String, String> yamlProperties) {
-    if (yamlProperties == null) return;
-    yamlProperties.forEach((name, yamlValue) -> {
-      if (name == null || name.isBlank() || yamlValue == null || yamlValue.isBlank()) return;
-      String systemValue = System.getProperty(name);
-      if (systemValue == null || systemValue.isBlank()) {
-        System.setProperty(name, yamlValue);
+  private static Map<String, String> canonicalSystemProperties() {
+    Map<String, String> canonical = new LinkedHashMap<>();
+    Map<String, String> legacy = new LinkedHashMap<>();
+    System.getProperties().forEach((key, value) -> {
+      String name = key.toString();
+      String canonicalName = RuntimePropertyNames.canonicalName(name);
+      if (canonicalName.equals(name)) {
+        canonical.put(name, value.toString());
+      } else {
+        legacy.putIfAbsent(canonicalName, value.toString());
       }
     });
+    legacy.forEach(canonical::putIfAbsent);
+    return canonical;
   }
 
-  private static String value(String name, Map<String, String> yamlProperties, String defaultValue) {
-    String systemValue = System.getProperty(name);
+  private static String value(String name, Map<String, String> yamlProperties,
+      Map<String, String> systemProperties, String defaultValue) {
+    String systemValue = systemProperties.get(name);
     if (systemValue != null && !systemValue.isBlank()) return systemValue;
     if (yamlProperties != null) {
       String yamlValue = yamlProperties.get(name);
@@ -168,15 +155,18 @@ public final class LoadedConstants {
     return defaultValue;
   }
 
-  private static boolean bool(String name, Map<String, String> yamlProperties, boolean defaultValue) {
-    return Boolean.parseBoolean(value(name, yamlProperties, Boolean.toString(defaultValue)));
+  private static boolean bool(String name, Map<String, String> yamlProperties,
+      Map<String, String> systemProperties, boolean defaultValue) {
+    return Boolean.parseBoolean(value(name, yamlProperties, systemProperties, Boolean.toString(defaultValue)));
   }
 
-  private static int integer(String name, Map<String, String> yamlProperties, int defaultValue) {
-    return Integer.parseInt(value(name, yamlProperties, Integer.toString(defaultValue)));
+  private static int integer(String name, Map<String, String> yamlProperties,
+      Map<String, String> systemProperties, int defaultValue) {
+    return Integer.parseInt(value(name, yamlProperties, systemProperties, Integer.toString(defaultValue)));
   }
 
-  private static long longValue(String name, Map<String, String> yamlProperties, long defaultValue) {
-    return Long.parseLong(value(name, yamlProperties, Long.toString(defaultValue)));
+  private static long longValue(String name, Map<String, String> yamlProperties,
+      Map<String, String> systemProperties, long defaultValue) {
+    return Long.parseLong(value(name, yamlProperties, systemProperties, Long.toString(defaultValue)));
   }
 }

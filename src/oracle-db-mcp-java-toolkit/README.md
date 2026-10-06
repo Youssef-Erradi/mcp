@@ -132,12 +132,12 @@ java \
 ```
 
 `runtimeConfigFile` and `configFile` are bootstrap properties and remain on the command line. A
-non-blank `-D` property overrides the matching YAML value. Nested sections map to the equivalent
-property name: for example, `database.url` maps to `db.url`, and `network.http.port` maps to
-`http.port`. See
-[`runtime-config.example.yaml`](runtime-config.example.yaml) for all supported runtime settings. Values
-in the runtime file are also made available to JDBC and UCP, so existing driver properties can move
-to the runtime file without adding toolkit-specific handling.
+non-blank `-D` property overrides the matching YAML value. Use the same canonical names in both
+places: for example, `database.url` and `network.http.port`. Existing property names such as
+`db.url` and `http.port` remain supported as compatibility aliases. When both forms are supplied,
+the canonical property wins. Runtime YAML is resolved by the toolkit and is not written into JVM
+system properties. See [`runtime-config.example.yaml`](runtime-config.example.yaml) for all
+supported runtime settings.
 
 Toolsets can be enabled from `-Dtools` alongside individual tools. For example:
 - `-Dtools=reporting` enables all tools in the `reporting` toolset

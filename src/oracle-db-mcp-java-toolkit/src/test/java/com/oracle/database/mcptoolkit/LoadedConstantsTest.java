@@ -21,9 +21,12 @@ class LoadedConstantsTest {
   @AfterEach
   void resetConstants() {
     for (String property : new String[] {
-        "transport", "https.port", "db.user", "db.password", "database.user", "http.allowedOriginalHosts",
-        "http.allowUnauthenticatedForDevelopment", "auth.enabled", "editTools.requireScope", "deepsec.enabled",
-        "deepsec.databaseToken.tokenEndpoint"
+        "transport", "network.transport", "https.port", "network.https.port", "db.user", "database.user",
+        "db.password", "database.password", "http.allowedOriginalHosts", "network.http.allowedOriginalHosts",
+        "http.allowUnauthenticatedForDevelopment", "network.http.allowUnauthenticatedForDevelopment",
+        "auth.enabled", "userAuth.enabled", "editTools.requireScope", "userAuth.editTools.requireScope",
+        "deepsec.enabled", "deepDataSecurity.enabled", "deepsec.databaseToken.tokenEndpoint",
+        "deepDataSecurity.databaseToken.tokenEndpoint"
     }) {
       System.clearProperty(property);
     }
@@ -33,8 +36,8 @@ class LoadedConstantsTest {
   @Test
   void loadsRuntimeSettingsFromYamlProperties() {
     RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
-        "transport", "HTTP", "db.user", "yaml-user", "db.password", "yaml-password",
-        "editTools.requireScope", "false"));
+        "network.transport", "HTTP", "database.user", "yaml-user", "database.password", "yaml-password",
+        "userAuth.editTools.requireScope", "false"));
 
     LoadedConstants.initialize(root);
 
@@ -47,7 +50,7 @@ class LoadedConstantsTest {
   @Test
   void systemPropertiesOverrideYamlProperties() {
     RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
-        "transport", "stdio", "db.user", "yaml-user"));
+        "network.transport", "stdio", "database.user", "yaml-user"));
     System.setProperty("transport", "http");
     System.setProperty("database.user", "system-user");
 
@@ -77,7 +80,7 @@ class LoadedConstantsTest {
           enabled: true
         """)));
 
-    root.properties().put("db.user", "yaml-user");
+    root.properties().put("database.user", "yaml-user");
     LoadedConstants.initialize(root);
 
     assertEquals("http", LoadedConstants.TRANSPORT_KIND);
@@ -93,9 +96,10 @@ class LoadedConstantsTest {
   @Test
   void loadsHttpSecurityAndDeepSecSettingsFromYamlProperties() {
     RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
-        "http.allowedOriginalHosts", "mcp.example.com",
-        "http.allowUnauthenticatedForDevelopment", "true", "auth.enabled", "true",
-        "deepsec.enabled", "true", "deepsec.databaseToken.tokenEndpoint", "https://identity.example.com/token"));
+        "network.http.allowedOriginalHosts", "mcp.example.com",
+        "network.http.allowUnauthenticatedForDevelopment", "true", "userAuth.enabled", "true",
+        "deepDataSecurity.enabled", "true",
+        "deepDataSecurity.databaseToken.tokenEndpoint", "https://identity.example.com/token"));
 
     LoadedConstants.initialize(root);
 
@@ -104,6 +108,19 @@ class LoadedConstantsTest {
     assertEquals(true, LoadedConstants.AUTH_ENABLED);
     assertEquals(true, LoadedConstants.DEEPSEC_ENABLED);
     assertEquals("https://identity.example.com/token", LoadedConstants.DEEPSEC_DATABASE_TOKEN_ENDPOINT);
+  }
+
+  @Test
+  void canonicalSystemPropertiesOverrideLegacyAliasesWithoutMutation() {
+    RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of("database.user", "yaml-user"));
+    System.setProperty("db.user", "legacy-user");
+    System.setProperty("database.user", "canonical-user");
+
+    LoadedConstants.initialize(root);
+
+    assertEquals("canonical-user", LoadedConstants.DB_USER);
+    assertEquals("canonical-user", System.getProperty("database.user"));
+    assertEquals("legacy-user", System.getProperty("db.user"));
   }
 
 }
