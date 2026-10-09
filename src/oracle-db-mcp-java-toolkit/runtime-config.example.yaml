@@ -20,7 +20,7 @@ dataIngestion:
   rootDirectory: "/data/ingest"
   maxFileSizeMb: "100"
 database:
-  url: "jdbc:oracle:thin:@//db.example.com:1521/ORCLPDB1"
+  url: "jdbc:oracle:thin:@tcps://db.example.com:1521/ORCLPDB1"
   user: "${DB_USER}"
   password: "${DB_PASSWORD}"
   transactions:
