@@ -85,7 +85,7 @@ public class Utils {
    *   Returns the list of all available tools for this server.
    * </p>
    */
-  static List<McpServerFeatures.SyncToolSpecification> getSyncToolSpecifications(ServerConfig config) {
+  public static List<McpServerFeatures.SyncToolSpecification> getSyncToolSpecifications(ServerConfig config) {
     // Clear custom tool names at startup in case of restart
     synchronized (customToolNames) {
       customToolNames.clear();
@@ -364,6 +364,29 @@ public class Utils {
    */
   public static Connection openConnection(ServerConfig cfg, String sourceName) throws SQLException {
     return getOrCreateDataSource(cfg, sourceName).getConnection();
+  }
+
+  /** Supplies an application-managed default data source before toolkit tools are created. */
+  public static synchronized void setDefaultDataSource(DataSource dataSource) {
+    if (dataSource == null) throw new IllegalArgumentException("dataSource must not be null");
+    if (defaultDataSource != null && defaultDataSource != dataSource) {
+      throw new IllegalStateException("The toolkit default data source has already been initialized");
+    }
+    if (LoadedConstants.DEEPSEC_ENABLED && dataSource instanceof PoolDataSource poolDataSource) {
+      try {
+        poolDataSource.setConnectionProperty(
+          "oracle.jdbc.provider.endUserSecurityContext",
+          new EndUserSecurityContextHolder().getName());
+      } catch (SQLException e) {
+        throw new IllegalStateException("Unable to configure the supplied UCP data source for DeepSec", e);
+      }
+    }
+    defaultDataSource = dataSource;
+  }
+
+  /** Returns whether an embedding application has supplied the default data source. */
+  public static boolean hasDefaultDataSource() {
+    return defaultDataSource != null;
   }
 
   /**

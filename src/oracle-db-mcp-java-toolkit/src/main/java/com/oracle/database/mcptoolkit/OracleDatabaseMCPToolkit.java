@@ -13,11 +13,8 @@ import com.oracle.database.mcptoolkit.web.AuthorizationFilter;
 import com.oracle.database.mcptoolkit.web.RedirectOAuthToOpenIDServlet;
 import com.oracle.database.mcptoolkit.web.WebUtils;
 import com.oracle.database.mcptoolkit.web.WellKnownServlet;
-import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
-import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
-import io.modelcontextprotocol.spec.McpSchema;
 
 import org.apache.catalina.Context;
 import org.apache.catalina.startup.Tomcat;
@@ -39,7 +36,6 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.logging.Logger;
 
-import static com.oracle.database.mcptoolkit.Utils.installExternalExtensionsFromDir;
 
 /**
  * The OracleDatabaseMCPToolkit class provides the main entry point for the MCP server.
@@ -48,34 +44,10 @@ import static com.oracle.database.mcptoolkit.Utils.installExternalExtensionsFrom
 public class OracleDatabaseMCPToolkit {
   private static final Logger LOG = Logger.getLogger(OracleDatabaseMCPToolkit.class.getName());
 
-  static ServerConfig config;
-  private static volatile McpSyncServer serverInstance;
-
-
-  static {
-    LoadedConstants.initialize(Utils.loadRuntimeConfig());
-    config = Utils.loadConfig();
-  }
-
   public static void main(String[] args) {
-    installExternalExtensionsFromDir();
-
     switch (LoadedConstants.TRANSPORT_KIND) {
-      case "http" -> {
-        serverInstance = startHttpServer();
-      }
-      case "stdio" -> {
-        serverInstance = McpServer
-          .sync(new StdioServerTransportProvider(McpJsonDefaults.getMapper()))
-          .serverInfo("oracle-db-mcp-toolkit", "1.0.0")
-          .capabilities(McpSchema.ServerCapabilities.builder()
-             .tools(true)
-             .logging()
-             .build())
-          .tools(Utils.getSyncToolSpecifications(config))
-          .immediateExecution(true)
-          .build();
-      }
+      case "http" -> startHttpServer();
+      case "stdio" -> McpServerRuntime.createStdioServer();
       default -> throw new IllegalArgumentException(
               "Unsupported transport: " + LoadedConstants.TRANSPORT_KIND + " (expected 'stdio' or 'http')");
     }
@@ -98,7 +70,6 @@ public class OracleDatabaseMCPToolkit {
    */
   private static McpSyncServer startHttpServer() {
     try {
-      validateHttpSecurityConfiguration();
       HttpServletStreamableServerTransportProvider transport =
         HttpServletStreamableServerTransportProvider.builder()
           .jsonMapper(McpJsonDefaults.getMapper())
@@ -106,16 +77,7 @@ public class OracleDatabaseMCPToolkit {
           .mcpEndpoint("/mcp")
           .build();
 
-      McpSyncServer server = McpServer
-        .sync(transport)
-        .serverInfo("oracle-db-mcp-toolkit", "1.0.0")
-        .capabilities(McpSchema.ServerCapabilities.builder()
-           .tools(true)
-           .logging()
-           .build())
-        .tools(Utils.getSyncToolSpecifications(config))
-        .immediateExecution(true)
-        .build();
+      McpSyncServer server = McpServerRuntime.createHttpServer(transport);
 
       Tomcat tomcat = new Tomcat();
       String ctxPath = "";
@@ -202,41 +164,15 @@ public class OracleDatabaseMCPToolkit {
     }
   }
 
-  private static void validateHttpSecurityConfiguration() {
-    if (!OAuth2Configuration.getInstance().isAuthenticationEnabled()) {
-      if (!LoadedConstants.HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT) {
-        throw new IllegalStateException(
-                "HTTP transport requires authentication. Set -Dauth.enabled=true or, for local "
-                        + "development only, -Dhttp.allowUnauthenticatedForDevelopment=true");
-      }
-      LOG.warning("[oracle-db-mcp-toolkit] Starting unauthenticated HTTP transport for development only");
-    }
-
-  }
-
   public static ServerConfig getConfig() {
-    return config;
+    return McpServerRuntime.getConfig();
   }
 
   /**
    * Exposes the running McpSyncServer instance for admin operations (e.g., removing tools at runtime).
    */
   public static McpSyncServer getServer() {
-    return serverInstance;
-  }
-
-  private static void reloadConfigAndResetTools() {
-    try {
-      LOG.info(()->"[DEBUG] Reloading config...");
-      ServerConfig newConfig = Utils.loadConfig();
-      LOG.info(()->"[DEBUG] Old custom tool names: " + Utils.customToolNames);
-      LOG.info(()->"[DEBUG] New config tool names: " + newConfig.tools.keySet());
-      config = newConfig;      // update reference
-      Utils.reloadCustomTools(serverInstance, newConfig);
-      LOG.info(()->"[DEBUG] Reloaded config and refreshed tools.");
-    } catch (Exception e) {
-      System.err.println("[oracle-db-mcp-toolkit] Failed to reload config: " + e);
-    }
+    return McpServerRuntime.getServer();
   }
 
   // For now, we rely on this instead of the nio watcher logic (for container’s sake)
@@ -252,7 +188,12 @@ public class OracleDatabaseMCPToolkit {
       long nowModified = configFile.lastModified();
       if (nowModified != lastModified && nowModified != 0) {
         lastModified = nowModified;
-        reloadConfigAndResetTools();
+        try {
+          McpServerRuntime.reloadCustomToolConfiguration();
+          LOG.info("[oracle-db-mcp-toolkit] Reloaded configuration and refreshed custom tools.");
+        } catch (Exception e) {
+          System.err.println("[oracle-db-mcp-toolkit] Failed to reload config: " + e);
+        }
       }
       try {
         Thread.sleep(2000); // Check every 2 seconds

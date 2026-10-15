@@ -9,7 +9,7 @@ package com.oracle.database.mcptoolkit.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.database.mcptoolkit.LoadedConstants;
-import com.oracle.database.mcptoolkit.OracleDatabaseMCPToolkit;
+import com.oracle.database.mcptoolkit.McpServerRuntime;
 import com.oracle.database.mcptoolkit.ServerConfig;
 import com.oracle.database.mcptoolkit.Utils;
 import com.oracle.database.mcptoolkit.config.ToolConfig;
@@ -150,7 +150,7 @@ public class McpAdminTools {
       .callHandler((exchange, callReq) -> {
         try {
           // Always use the latest runtime config to avoid requiring a rebuild
-          ServerConfig current = OracleDatabaseMCPToolkit.getConfig() != null ? OracleDatabaseMCPToolkit.getConfig() : config;
+          ServerConfig current = McpServerRuntime.getConfig() != null ? McpServerRuntime.getConfig() : config;
 
           List<Map<String, Object>> tools = new ArrayList<>();
 
@@ -337,7 +337,7 @@ public class McpAdminTools {
               }
               // Try to remove the tool from the running server as well
               try {
-                OracleDatabaseMCPToolkit.getServer().removeTool(name);
+                McpServerRuntime.getServer().removeTool(name);
                 Utils.unregisterCustomToolLocally(name);
               } catch (Exception ignored) {}
 
@@ -387,7 +387,7 @@ public class McpAdminTools {
             t.put("parameters", params);
           }
 
-          ServerConfig currentConfig = OracleDatabaseMCPToolkit.getConfig();
+          ServerConfig currentConfig = McpServerRuntime.getConfig();
           ToolConfig candidate = new ObjectMapper().convertValue(t, ToolConfig.class);
           candidate.name = name;
           CustomToolPolicy.ValidationResult validation = CustomToolPolicy.validateForEditTools(name, candidate, currentConfig);
@@ -408,7 +408,7 @@ public class McpAdminTools {
 
           // Try to remove stale instance at runtime (best-effort hot update); server will re-add on reload
           try {
-            var srv = OracleDatabaseMCPToolkit.getServer();
+            var srv = McpServerRuntime.getServer();
             if (srv != null) srv.removeTool(name);
           } catch (Exception ignored) {}
 

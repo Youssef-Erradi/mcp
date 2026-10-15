@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.oracle.database.mcptoolkit</groupId>
+        <artifactId>oracle-db-mcp-toolkit-parent</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>oracle-db-mcp-toolkit-core</artifactId>
+    <name>Oracle Database MCP Toolkit Core</name>
+
+    <dependencies>
+        <dependency><groupId>io.modelcontextprotocol.sdk</groupId><artifactId>mcp</artifactId><version>${mcp.version}</version></dependency>
+        <dependency><groupId>com.oracle.database.jdbc</groupId><artifactId>ojdbc17</artifactId><version>${ojdbc.version}</version></dependency>
+        <dependency><groupId>com.oracle.database.jdbc</groupId><artifactId>ucp17</artifactId><version>${ojdbc.version}</version></dependency>
+        <dependency><groupId>org.yaml</groupId><artifactId>snakeyaml</artifactId><version>${snakeYaml.version}</version></dependency>
+        <dependency><groupId>com.nimbusds</groupId><artifactId>nimbus-jose-jwt</artifactId><version>${nimbus-jose-jwt.version}</version></dependency>
+        <dependency><groupId>com.oracle.database.jdbc</groupId><artifactId>ojdbc-log-analyzer</artifactId><version>${logAnalyzer.version}</version></dependency>
+        <dependency><groupId>jakarta.servlet</groupId><artifactId>jakarta.servlet-api</artifactId><version>6.0.0</version><scope>provided</scope></dependency>
+        <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>${junit.version}</version><scope>test</scope></dependency>
+    </dependencies>
+
+    <build>
+        <sourceDirectory>${project.basedir}/../src/main/java</sourceDirectory>
+        <testSourceDirectory>${project.basedir}/../src/test/java</testSourceDirectory>
+        <resources><resource><directory>${project.basedir}/../src/main/resources</directory></resource></resources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <excludes><exclude>**/OracleDatabaseMCPToolkit.java</exclude></excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
