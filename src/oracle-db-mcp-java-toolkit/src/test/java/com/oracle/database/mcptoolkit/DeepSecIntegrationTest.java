@@ -7,6 +7,7 @@ package com.oracle.database.mcptoolkit;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oracle.database.mcptoolkit.config.RuntimePropertyNames;
 import com.oracle.database.mcptoolkit.oauth.AuthenticatedPrincipal;
 import com.oracle.database.mcptoolkit.oauth.DeepSecDatabaseTokenProvider;
 import com.oracle.database.mcptoolkit.oauth.EndUserSecurityContextHolder;
@@ -335,7 +336,11 @@ class DeepSecIntegrationTest {
   }
 
   private static String configuration(String name, String defaultValue) {
-    String value = System.getProperty(name);
+    String canonicalName = RuntimePropertyNames.canonicalName(name);
+    String value = System.getProperty(canonicalName);
+    if ((value == null || value.isBlank()) && !canonicalName.equals(name)) {
+      value = System.getProperty(name);
+    }
     return value == null || value.isBlank() ? defaultValue : value;
   }
 

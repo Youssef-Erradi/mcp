@@ -35,7 +35,7 @@ A YAML file may define:
   * `database` (optional): The Oracle service name of the database.
 
 * One or more **tools** — The MCP tools:
-  * `dataSource` (optional): Defines the data source to be used (defaults to system properties `db.url`, `db.user` and `db.password`).
+  * `dataSource` (optional): Defines the data source to use (defaults to the runtime settings `database.url`, `database.user`, and `database.password`).
   * `enabled` (optional): If `false`, disables this custom tool. Omitted/`true` means enabled.
   * `name`: The tool name and title, derived from the YAML key.
   * `description`: A brief description of the tool.
@@ -56,7 +56,7 @@ When executing a tool, the MCP server determines which datasource to use based o
 1. If the tool specifies a datasource, that datasource is used.
 
 2. If the tool does not specify a datasource, the server looks for a default datasource:
-* First, it checks whether a datasource was provided via system properties (`db.url`, `db.user`, `db.password) (Higher priority).
+* First, it checks whether a datasource was provided through runtime settings (`database.url`, `database.user`, `database.password`) (higher priority).
 * If no system property datasource is available, it falls back to the first datasource defined in the YAML file, if present.
 
 3. If no datasource can be resolved and the tool requires one (e.g., SQL-based tools), the server reports a configuration error.
@@ -139,13 +139,13 @@ the canonical property wins. Runtime YAML is resolved by the toolkit and is not 
 system properties. See [`runtime-config.example.yaml`](runtime-config.example.yaml) for all
 supported runtime settings.
 
-Toolsets can be enabled from `-Dtools` alongside individual tools. For example:
-- `-Dtools=reporting` enables all tools in the `reporting` toolset
-- `-Dtools=reporting,explain` enables your `reporting` set plus the built-in `explain` toolset (see below)
-- `-Dtools=*` or omit `-Dtools` to enable everything
+Toolsets can be enabled with `-DtoolSelection.enabled` alongside individual tools. For example:
+- `-DtoolSelection.enabled=reporting` enables all tools in the `reporting` toolset
+- `-DtoolSelection.enabled=reporting,explain` enables your `reporting` set plus the built-in `explain` toolset (see below)
+- `-DtoolSelection.enabled=*` or omit it to enable everything
 
 Custom tool defaults:
-- Custom tools and custom toolsets are enabled by default, even if they are not listed in `-Dtools`.
+- Custom tools and custom toolsets are enabled by default, even if they are not listed in `-DtoolSelection.enabled`.
 - Set `enabled: false` on a tool or a toolset to disable it.
 
 Priority/precedence rules (highest to lowest):
@@ -196,7 +196,7 @@ Outcome:
 ## 3. Built-in Tools
 
 ### Built-in Toolsets Overview
-The server provides four built-in toolsets that can be enabled via `-Dtools`:
+The server provides four built-in toolsets that can be enabled via `-DtoolSelection.enabled`:
 
 <table>
   <thead>
@@ -242,12 +242,12 @@ The server provides four built-in toolsets that can be enabled via `-Dtools`:
 _Note: `list-tools` is a standalone discovery tool. Enabling a toolset enables all tools listed for that toolset._
 
 **Common Configurations:**
-- `-Dtools=mcp-admin` - Admin and runtime configuration tools
-- `-Dtools=log-analyzer` - Oracle JDBC Log and RDBMS/SQLNet trace file analysis only (no database required)
-- `-Dtools=database-operator` - Database operations and SQL execution
-- `-Dtools=rag` – Vector store management, document embedding, and semantic similarity search
-- `-Dtools=mcp-admin,log-analyzer` - Admin + log analysis
-- `-Dtools=*` - All non-protected tools (default if omitted). Protected admin tools require `-Dtools=mcp-admin` or the individual tool name.
+- `-DtoolSelection.enabled=mcp-admin` - Admin and runtime configuration tools
+- `-DtoolSelection.enabled=log-analyzer` - Oracle JDBC Log and RDBMS/SQLNet trace file analysis only (no database required)
+- `-DtoolSelection.enabled=database-operator` - Database operations and SQL execution
+- `-DtoolSelection.enabled=rag` – Vector store management, document embedding, and semantic similarity search
+- `-DtoolSelection.enabled=mcp-admin,log-analyzer` - Admin + log analysis
+- `-DtoolSelection.enabled=*` - All non-protected tools (default if omitted). Protected admin tools require `-DtoolSelection.enabled=mcp-admin` or the individual tool name.
 
 ### 3.1. Database Operations
 These tools provide direct SQL execution capabilities:
@@ -356,7 +356,7 @@ These tools provide a full RAG pipeline: model management, vector store creation
   - `action=files` — embed multiple local files in a single background job.
     * `filePaths` (array, required) — list of absolute file paths; at most 100 files per request
 
-  Local file ingestion requires `-DingestRootDir=/path/to/ingest/root`. Each requested file path is resolved to its real filesystem path and must stay inside that root. Ingested files must be no larger than `ingestMaxFileSizeMb`, whose value is in MB (default: `50`).
+  Local file ingestion requires `-DdataIngestion.rootDirectory=/path/to/ingest/root`. Each requested file path is resolved to its real filesystem path and must stay inside that root. Ingested files must be no larger than `dataIngestion.maxFileSizeMb`, whose value is in MB (default: `50`).
 
   - `action=table` — embed text from an existing Oracle table into a vector store.
     * `sourceTable` (string, required) — table containing the source text
@@ -378,7 +378,7 @@ These tools provide a full RAG pipeline: model management, vector store creation
     * `allowedExtensions` (array, optional) — only embed files with these extensions (e.g. `["pdf", "txt"]`); omit to skip extension filtering
     * `maxObjects` (number or string, optional) — maximum bucket objects to embed. Default is `100`; values above `10000` process at most `10000`.
 
-    Bucket ingestion skips objects larger than `ingestMaxFileSizeMb` (default: `50` MB) before embedding them.
+    Bucket ingestion skips objects larger than `dataIngestion.maxFileSizeMb` (default: `50` MB) before embedding them.
 
   **Returns:** `{ taskId, status: "PENDING", table, ... }` — use the `task` tool to check progress.
 
@@ -493,8 +493,8 @@ These tools provide a full RAG pipeline: model management, vector store creation
 ### 3.9. Admin and Runtime Configuration Tools
 
 These tools help you discover what's enabled and manage YAML-defined tools at runtime.
-`list-tools` is a standalone discovery tool. Protected administrative tools are part of the `mcp-admin` toolset (enable via `-Dtools=mcp-admin` or include individual tool names).
-The `mcp-admin` toolset is not included by default, `-Dtools=*`, or `-Dtools=all`; enable it explicitly with `-Dtools=mcp-admin`.
+`list-tools` is a standalone discovery tool. Protected administrative tools are part of the `mcp-admin` toolset (enable via `-DtoolSelection.enabled=mcp-admin` or include individual tool names).
+The `mcp-admin` toolset is not included by default, `-DtoolSelection.enabled=*`, or `-DtoolSelection.enabled=all`; enable it explicitly with `-DtoolSelection.enabled=mcp-admin`.
 
 _Note: The `mcp-admin` toolset is focused on protected runtime configuration and administrative inventory._
 
@@ -502,13 +502,13 @@ _Note: The `mcp-admin` toolset is focused on protected runtime configuration and
 
 - `list-tools`: List all available tools with their descriptions.
   - Inputs: none
-  - Returns: `tools` array with `{ name, title, description }` for built-ins (honoring `-Dtools` filter) and any YAML-defined tools.
+  - Returns: `tools` array with `{ name, title, description }` for built-ins (honoring the `-DtoolSelection.enabled` filter) and any YAML-defined tools.
 
 - `list-credentials`: List DBMS_CLOUD credentials available in the current schema.
   - Inputs: none
   - Returns: `{ totalCredentials, credentials: [{ credentialName, username, enabled }] }`
   - Requirements and behavior:
-    - Must be explicitly enabled with `-Dtools=list-credentials` or `-Dtools=mcp-admin`.
+    - Must be explicitly enabled with `-DtoolSelection.enabled=list-credentials` or `-DtoolSelection.enabled=mcp-admin`.
     - When HTTP authentication is enabled, requires OAuth scope `mcp:credentials:read` or `mcp:admin`.
     - Set `toolAuthorization.listCredentials.requireScope: false` only when every authenticated caller should be allowed to list credential metadata.
 
@@ -522,11 +522,11 @@ _Note: The `mcp-admin` toolset is focused on protected runtime configuration and
     - `statement` (string, optional): SQL (SELECT or DML)
     - `parameters` (array, optional): Items of `{ name, type, description, required }`
   - Requirements and behavior:
-    - Must be explicitly enabled with `-Dtools=edit-tools` or `-Dtools=mcp-admin`.
+    - Must be explicitly enabled with `-DtoolSelection.enabled=edit-tools` or `-DtoolSelection.enabled=mcp-admin`.
     - Requires `-DconfigFile` to be set to a writable YAML file; otherwise the tool will return an error.
     - When HTTP authentication is enabled, requires OAuth scope `mcp:tools:write` or `mcp:admin`.
     - Set `toolAuthorization.editTools.requireScope: false` only when every authenticated caller should be allowed to edit tools.
-    - OAuth scope lookup defaults to the `scope` claim in the introspection response. If your authorization server uses a different claim, configure its dot-separated path with `-Doauth.scopeClaimPath=<claim.path>`.
+    - OAuth scope lookup defaults to the `scope` claim in the introspection response. If your authorization server uses a different claim, configure its dot-separated path with `-DuserAuth.tokenValidation.introspection.scopeClaimPath=<claim.path>`.
     - Tool names must be safe and cannot collide with built-in tools or toolsets.
     - For `edit-tools` changes, `dataSource` is required, must exist under `dataSources:`, and must be in `admin.editTools.allowedDataSources` when that allowlist is configured.
     - `edit-tools` allows `SELECT` statements by default; additional statement types must be allowed by `admin.editTools.allowedStatementTypes`.
@@ -602,11 +602,11 @@ This is the mode used by tools like Claude Desktop, where the client directly la
     "oracle-db-mcp-toolkit": {
       "command": "java",
       "args": [
-        "-Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service",
-        "-Ddb.user=your_user",
-        "-Ddb.password=your_password",
-        "-Dtools=jdbc-analyzer",
-        "-Dojdbc.ext.dir=/path/to/extra-jars",
+        "-Ddatabase.url=jdbc:oracle:thin:@your-host:1521/your-service",
+        "-Ddatabase.user=your_user",
+        "-Ddatabase.password=your_password",
+        "-DtoolSelection.enabled=jdbc-analyzer",
+        "-Ddatabase.jdbc.extensionsDirectory=/path/to/extra-jars",
         "-jar",
         "<path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar"
       ]
@@ -615,7 +615,7 @@ This is the mode used by tools like Claude Desktop, where the client directly la
 }
 ```
 
-If you don’t set `-Dtransport`, the server runs in stdio mode by default.
+If you don’t set `-Dnetwork.transport`, the server runs in stdio mode by default.
 
 #### 4.3.2. Streamable HTTP mode
 
@@ -623,14 +623,14 @@ In streamable HTTP mode, you run the server as a standalone HTTP service and poi
 
 ##### HTTP transport security
 
-HTTP transport requires authentication. Start it with `-Dauth.enabled=true` and configure OAuth2, or use the generated development token described below.
+HTTP transport requires authentication. Start it with `-DuserAuth.enabled=true` and configure OAuth2, or use the generated development token described below.
 
-For local development only, an unauthenticated server can be started with `-Dhttp.allowUnauthenticatedForDevelopment=true`. This is intentionally explicit and emits a warning; do not use it for a remotely reachable service.
+For local development only, an unauthenticated server can be started with `-Dnetwork.http.allowUnauthenticatedForDevelopment=true`. This is intentionally explicit and emits a warning; do not use it for a remotely reachable service.
 
-`http.allowedOriginalHosts` is optional and disabled by default for compatibility with non-browser MCP clients, proxies, and health checks. When configured, it is a comma-separated list of browser-origin host names only (no scheme or port), and the server rejects MCP requests without an `Origin` header and rejects origins outside this allowlist before MCP dispatch. Configure it for browser-accessible deployments that need DNS-rebinding protection:
+`network.http.allowedOriginalHosts` is optional and disabled by default for compatibility with non-browser MCP clients, proxies, and health checks. When configured, it is a comma-separated list of browser-origin host names only (no scheme or port), and the server rejects MCP requests without an `Origin` header and rejects origins outside this allowlist before MCP dispatch. Configure it for browser-accessible deployments that need DNS-rebinding protection:
 
 ```shell
--Dhttp.allowedOriginalHosts=mcp.example.com
+-Dnetwork.http.allowedOriginalHosts=mcp.example.com
 ```
 
 Use a reverse proxy or firewall appropriate for your deployment. `network.cors.allowedOrigin` is a separate CORS setting for OAuth discovery metadata; it does not control MCP request admission. The legacy `allowedHosts` name remains supported.
@@ -639,23 +639,23 @@ Use a reverse proxy or firewall appropriate for your deployment. `network.cors.a
 
 **WARNING**: Enable https at your own risk. When enabling https pay extra attention to the MCP tools that you enable as they may create a new risk for your database server.
 
-To enable HTTPS (SSL/TLS), specify your certificate keystore path and password using the `-DcertificatePath` and `-DcertificatePassword` options.  
+To enable HTTPS (SSL/TLS), specify your certificate keystore path and password using the `-Dnetwork.https.certificatePath` and `-Dnetwork.https.certificatePassword` options.
 Only PKCS12 (`.p12` or `.pfx`) keystore files are supported.
-You can set the HTTPS port with the `-Dhttps.port` option.
+You can set the HTTPS port with the `-Dnetwork.https.port` option.
 
 Start the server:
 
 ```shell
 java \
-  -Dtransport=http \
-  -Dhttps.port=45450 \
-  -DcertificatePath=/path/to/your-certificate.p12 \
-  -DcertificatePassword=yourPassword \
-  -Dauth.enabled=true \
-  -Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service \
-  -Ddb.user=your_user \
-  -Ddb.password=your_password \
-  -Dtools=jdbc-analyzer \
+  -Dnetwork.transport=http \
+  -Dnetwork.https.port=45450 \
+  -Dnetwork.https.certificatePath=/path/to/your-certificate.p12 \
+  -Dnetwork.https.certificatePassword=yourPassword \
+  -DuserAuth.enabled=true \
+  -Ddatabase.url=jdbc:oracle:thin:@your-host:1521/your-service \
+  -Ddatabase.user=your_user \
+  -Ddatabase.password=your_password \
+  -DtoolSelection.enabled=jdbc-analyzer \
   -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
 
@@ -699,7 +699,7 @@ Claude Desktop accepts HTTPS endpoints for remote MCP servers.
 
 #### 4.4.1. Generated Token (For Development and Testing)
 
-To enable authentication for the HTTP server, set `-Dauth.enabled=true` (default: `false`). HTTP transport refuses to start without authentication unless `-Dhttp.allowUnauthenticatedForDevelopment=true` is explicitly set for local development.
+To enable authentication for the HTTP server, set `-DuserAuth.enabled=true` (default: `false`). HTTP transport refuses to start without authentication unless `-Dnetwork.http.allowUnauthenticatedForDevelopment=true` is explicitly set for local development.
 If it's enabled (e.g. set to `true`) the MCP Server will check if there's an environment variable called `ORACLE_DB_TOOLKIT_AUTH_TOKEN` and its value will be used as a token.
 If the environment variable is not found, then a random UUID token will be generated once per JVM session. The token would be logged at the `INFO` level.
 
@@ -707,29 +707,29 @@ When connecting to the MCP server, the token needs to be provided in the Authori
 
 #### 4.4.2. OAuth2 Configuration
 
-In order to configure an OAuth2 server, enable `-Dauth.enabled=true` alongside the following system properties:
+In order to configure an OAuth2 server, enable `-DuserAuth.enabled=true` alongside the following runtime properties:
 
-* `-Dauth.authorizationServer`: The OAuth2 server URL which MUST provide the `/.well-known/oauth-authorization-server`. If it only provides `/.well-known/openid-configuration`, enable `-Dauth.openIdDiscoveryRedirectEnabled=true`.
+* `-DuserAuth.authorizationServer`: The OAuth2 server URL which MUST provide the `/.well-known/oauth-authorization-server`. If it only provides `/.well-known/openid-configuration`, enable `-DuserAuth.openIdDiscoveryRedirectEnabled=true`.
 * `-Dmcp.oauth.scopes`: Optional space- or comma-separated OAuth scopes advertised to MCP clients for end-user login (default: `openid`).
 * `-Dmcp.oauth.resourceUrl`: Optional externally visible MCP resource URL advertised in OAuth protected-resource metadata. Set this when the server is behind a proxy or public route whose URL differs from the incoming servlet request URL.
-* `-Dauth.openIdDiscoveryRedirectEnabled`: (default: `false`) Creates an `/.well-known/oauth-authorization-server` endpoint that redirects to the authorization server's `/.well-known/openid-configuration` endpoint.
+* `-DuserAuth.openIdDiscoveryRedirectEnabled`: (default: `false`) Creates an `/.well-known/oauth-authorization-server` endpoint that redirects to the authorization server's `/.well-known/openid-configuration` endpoint.
   It works by creating an `/.well-known/oauth-authorization-server` endpoint on the MCP Server that redirects to the OAuth server's `/.well-known/openid-configuration` endpoint.
-* `-Dauth.userTokenValidation.mode`: Token validation mode. Use `introspection` (default) to validate bearer tokens by calling the OAuth2 introspection endpoint, or `jwt` to validate JWT access tokens locally with JWKS.
-* `-Dauth.userTokenValidation.introspection.endpoint`: The OAuth2 server's introspection endpoint used to validate an access token (The OAuth2 introspection JSON response MUST contain the `active` field, e.g. `{...,"active": false,..}`).
+* `-DuserAuth.tokenValidation.mode`: Token validation mode. Use `introspection` (default) to validate bearer tokens by calling the OAuth2 introspection endpoint, or `jwt` to validate JWT access tokens locally with JWKS.
+* `-DuserAuth.tokenValidation.introspection.endpoint`: The OAuth2 server's introspection endpoint used to validate an access token (The OAuth2 introspection JSON response MUST contain the `active` field, e.g. `{...,"active": false,..}`).
   Which means that whenever the MCP server receives an HTTP request, it sends an HTTP request to the OAuth2 server's introspection endpoint to check the validity of the JWT access token.
-* `-Dauth.userTokenValidation.jwt.issuer`: Required when `auth.userTokenValidation.mode=jwt`. Expected JWT `iss` claim.
-* `-Dauth.userTokenValidation.jwt.jwksUri`: Required when `auth.userTokenValidation.mode=jwt`. JWKS endpoint used to fetch public signing keys.
-* `-Dauth.userTokenValidation.jwt.audience`: Required when `auth.userTokenValidation.mode=jwt`. Expected JWT `aud` claim.
-* `-Dauth.userTokenValidation.jwt.jwksCacheSeconds`: Optional JWKS cache duration in seconds when `auth.userTokenValidation.mode=jwt` (default: `600`).
-* `-Dauth.userTokenValidation.introspection.clientId`: Client ID used for introspection (e.g. `oracle-db-toolkit`).
-* `-Dauth.userTokenValidation.introspection.clientSecret`: Client secret used for introspection.
+* `-DuserAuth.tokenValidation.jwt.issuer`: Required when `userAuth.tokenValidation.mode=jwt`. Expected JWT `iss` claim.
+* `-DuserAuth.tokenValidation.jwt.jwksUri`: Required when `userAuth.tokenValidation.mode=jwt`. JWKS endpoint used to fetch public signing keys.
+* `-DuserAuth.tokenValidation.jwt.audience`: Required when `userAuth.tokenValidation.mode=jwt`. Expected JWT `aud` claim.
+* `-DuserAuth.tokenValidation.jwt.jwksCacheSeconds`: Optional JWKS cache duration in seconds when `userAuth.tokenValidation.mode=jwt` (default: `600`).
+* `-DuserAuth.tokenValidation.introspection.clientId`: Client ID used for introspection (e.g. `oracle-db-toolkit`).
+* `-DuserAuth.tokenValidation.introspection.clientSecret`: Client secret used for introspection.
 * `-Dnetwork.cors.allowedOrigin`: (default: `*`) The value of the `Access-Control-Allow-Origin` header for the `/.well-known/oauth-protected-resource` endpoint (and `/.well-known/oauth-authorization-server` when enabled). The legacy `-DallowedHosts` alias remains supported.
 
 ##### MCP login scopes vs DeepSec database scopes
 
 The OAuth scopes advertised with `-Dmcp.oauth.scopes` are for the human MCP user's browser login. For most OpenID Connect providers, this should remain `openid` unless your MCP client registration is explicitly allowed to request additional end-user scopes.
 
-Do not put database resource scopes such as `OracleDBDB_ACCESS_SCOPE` in `mcp.oauth.scopes` unless the user-facing OAuth client is allowed to request that scope interactively. Database access-token scopes used for Deep Data Security are configured separately with `-Ddeepsec.databaseToken.scope`.
+Do not put database resource scopes such as `OracleDBDB_ACCESS_SCOPE` in `mcp.oauth.scopes` unless the user-facing OAuth client is allowed to request that scope interactively. Database access-token scopes used for Deep Data Security are configured separately with `-DdeepDataSecurity.databaseToken.scope`.
 
 For more details regarding this MCP and OAuth, please see [MCP specification for authorization](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization) (or a newer version if available).
 
@@ -739,17 +739,17 @@ For more details regarding this MCP and OAuth, please see [MCP specification for
 
 ```bash
 java \
-    -Ddb.url=jdbc:oracle:thin:@host:1521/service \
-    -Dtransport=http \
-    -Dhttps.port=45450 \
-    -DcertificatePath=/path/to/your-certificate.p12 \
-    -DcertificatePassword=yourPassword \
-    -Dauth.enabled=true \
-    -Dauth.authorizationServer=http://localhost:8080/realms/mcp \
+    -Ddatabase.url=jdbc:oracle:thin:@host:1521/service \
+    -Dnetwork.transport=http \
+    -Dnetwork.https.port=45450 \
+    -Dnetwork.https.certificatePath=/path/to/your-certificate.p12 \
+    -Dnetwork.https.certificatePassword=yourPassword \
+    -DuserAuth.enabled=true \
+    -DuserAuth.authorizationServer=http://localhost:8080/realms/mcp \
     -Dmcp.oauth.scopes=openid \
-    -Dauth.userTokenValidation.introspection.endpoint=http://localhost:8080/realms/mcp/protocol/openid-connect/token/introspect \
-    -Dauth.userTokenValidation.introspection.clientId=oracle-db-toolkit \
-    -Dauth.userTokenValidation.introspection.clientSecret=Xj9mPqR2vL5kN8tY3hB7wF4uD6cA1eZ0 \
+    -DuserAuth.tokenValidation.introspection.endpoint=http://localhost:8080/realms/mcp/protocol/openid-connect/token/introspect \
+    -DuserAuth.tokenValidation.introspection.clientId=oracle-db-toolkit \
+    -DuserAuth.tokenValidation.introspection.clientSecret=Xj9mPqR2vL5kN8tY3hB7wF4uD6cA1eZ0 \
     -Dnetwork.cors.allowedOrigin=http://localhost:6274 \
     -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
@@ -763,17 +763,17 @@ If your authorization server issues JWT access tokens, the MCP server can valida
 
 ```bash
 java \
-    -Ddb.url=jdbc:oracle:thin:@host:1521/service \
-    -Dtransport=http \
-    -Dhttps.port=8080 \
-    -DcertificatePath=/path/to/your-certificate.p12 \
-    -DcertificatePassword=yourPassword \
-    -Dauth.enabled=true \
-    -Dauth.authorizationServer=https://identity.example.com \
-    -Dauth.userTokenValidation.mode=jwt \
-    -Dauth.userTokenValidation.jwt.issuer=https://issuer.example.com/ \
-    -Dauth.userTokenValidation.jwt.jwksUri=https://identity.example.com/.well-known/jwks.json \
-    -Dauth.userTokenValidation.jwt.audience=https://identity.example.com \
+    -Ddatabase.url=jdbc:oracle:thin:@host:1521/service \
+    -Dnetwork.transport=http \
+    -Dnetwork.https.port=8080 \
+    -Dnetwork.https.certificatePath=/path/to/your-certificate.p12 \
+    -Dnetwork.https.certificatePassword=yourPassword \
+    -DuserAuth.enabled=true \
+    -DuserAuth.authorizationServer=https://identity.example.com \
+    -DuserAuth.tokenValidation.mode=jwt \
+    -DuserAuth.tokenValidation.jwt.issuer=https://issuer.example.com/ \
+    -DuserAuth.tokenValidation.jwt.jwksUri=https://identity.example.com/.well-known/jwks.json \
+    -DuserAuth.tokenValidation.jwt.audience=https://identity.example.com \
     -Dmcp.oauth.scopes=openid \
     -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
@@ -805,15 +805,16 @@ oracle:
   mcp:
     enabled: true
     settings:
-      tools: database-operator
-      db:
+      toolSelection:
+        enabled: database-operator
+      database:
         url: ${DB_URL}
         user: ${DB_USER}
         password: ${DB_PASSWORD}
-      auth:
+      userAuth:
         enabled: true
         authorizationServer: https://identity.example.com
-        userTokenValidation:
+        tokenValidation:
           mode: jwt
           jwt:
             issuer: https://issuer.example.com/
@@ -826,21 +827,21 @@ oracle:
 
 The starter registers the authenticated Streamable HTTP endpoint at `/mcp`, the protected-resource
 metadata endpoint at `/.well-known/oauth-protected-resource`, and the toolkit authorization filter.
-When `settings.auth.openIdDiscoveryRedirectEnabled` is `true`, it also exposes
+When `settings.userAuth.openIdDiscoveryRedirectEnabled` is `true`, it also exposes
 `/.well-known/oauth-authorization-server`, matching the standalone server behavior.
 It uses the application-managed web-server lifecycle. For local-only development, set
-`settings.http.allowUnauthenticatedForDevelopment: true`; production deployments must set
-`settings.auth.enabled: true` and configure token validation.
+`settings.network.http.allowUnauthenticatedForDevelopment: true`; production deployments must set
+`settings.userAuth.enabled: true` and configure token validation.
 
 When the application has exactly one Spring `DataSource` (or a primary one), the starter uses it as
-the toolkit's default datasource. In that case the `settings.db.url`, `settings.db.user`, and
-`settings.db.password` entries may be omitted. YAML-defined named datasources remain supported and
+the toolkit's default datasource. In that case the `settings.database.url`, `settings.database.user`, and
+`settings.database.password` entries may be omitted. YAML-defined named datasources remain supported and
 continue to be owned by the toolkit.
 
 For Deep Data Security, a Spring-managed UCP datasource is configured with the toolkit's
 end-user-security-context provider automatically. If the application supplies another pool type,
 configure that pool to pass the equivalent Oracle JDBC connection property, or let the toolkit
-create its own UCP datasource from `settings.db`.
+create its own UCP datasource from `settings.database`.
 
 The core toolkit is intentionally framework-neutral. The standalone executable remains available,
 and the starter is optional for Spring Boot servlet applications. A JVM supports one active toolkit
@@ -860,17 +861,17 @@ When DeepSec is enabled, the request flow is:
 
 Required properties:
 
-* `-Ddeepsec.enabled=true`: Enables DeepSec context propagation. The end-user access token must be a signed JWT containing `iss` and `sub`; opaque tokens are rejected.
-* `-Ddeepsec.databaseToken.tokenEndpoint`: OAuth2 token endpoint used to obtain the database-scoped DeepSec token.
-* `-Ddeepsec.databaseToken.clientId`: Client ID used to obtain the database-scoped DeepSec token.
-* `-Ddeepsec.databaseToken.clientSecret`: Client secret used to obtain the database-scoped DeepSec token.
-* `-Ddeepsec.databaseToken.scope`: Database resource scope for the DeepSec/database token, for example `OracleDBDB_ACCESS_SCOPE`.
+* `-DdeepDataSecurity.enabled=true`: Enables DeepSec context propagation. The end-user access token must be a signed JWT containing `iss` and `sub`; opaque tokens are rejected.
+* `-DdeepDataSecurity.databaseToken.tokenEndpoint`: OAuth2 token endpoint used to obtain the database-scoped DeepSec token.
+* `-DdeepDataSecurity.databaseToken.clientId`: Client ID used to obtain the database-scoped DeepSec token.
+* `-DdeepDataSecurity.databaseToken.clientSecret`: Client secret used to obtain the database-scoped DeepSec token.
+* `-DdeepDataSecurity.databaseToken.scope`: Database resource scope for the DeepSec/database token, for example `OracleDBDB_ACCESS_SCOPE`.
 Optional properties:
 
-* `-Ddeepsec.databaseToken.staticValue`: Static database-scoped token for local smoke tests. Prefer `deepsec.databaseToken.tokenEndpoint` plus client credentials for normal use.
-* `-Ddb.transactionIdleTimeoutSeconds`: Rolls back an open transaction after this many unused seconds (default: `120`).
-* `-Ddb.transactionMaxLifetimeSeconds`: Absolute maximum lifetime for a transaction that spans tool calls (default: `300`).
-* `-Ddb.maxTransactionsPerUser`: Maximum concurrent open transactions for one authenticated user (default: `4`).
+* `-DdeepDataSecurity.databaseToken.staticValue`: Static database-scoped token for local smoke tests. Prefer `deepDataSecurity.databaseToken.tokenEndpoint` plus client credentials for normal use.
+* `-Ddatabase.transactions.idleTimeoutSeconds`: Rolls back an open transaction after this many unused seconds (default: `120`).
+* `-Ddatabase.transactions.maxLifetimeSeconds`: Absolute maximum lifetime for a transaction that spans tool calls (default: `300`).
+* `-Ddatabase.transactions.maxPerUser`: Maximum concurrent open transactions for one authenticated user (default: `4`).
 
 DeepSec requires a signed JWT end-user access token containing `iss` and `sub` claims. Transactions
 that span MCP tool calls are bound to a non-reversible owner identifier derived from those claims.
@@ -899,24 +900,24 @@ Example:
 
 ```bash
 java \
-    -Ddb.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
-    -Ddb.user=mcp_app_user \
-    -Ddb.password='your-db-password' \
-    -Dtransport=http \
-    -Dhttps.port=8080 \
-    -DcertificatePath=/path/to/your-certificate.p12 \
-    -DcertificatePassword=yourPassword \
-    -Dauth.enabled=true \
-    -Dauth.authorizationServer=https://idcs.example.com \
+    -Ddatabase.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
+    -Ddatabase.user=mcp_app_user \
+    -Ddatabase.password='your-db-password' \
+    -Dnetwork.transport=http \
+    -Dnetwork.https.port=8080 \
+    -Dnetwork.https.certificatePath=/path/to/your-certificate.p12 \
+    -Dnetwork.https.certificatePassword=yourPassword \
+    -DuserAuth.enabled=true \
+    -DuserAuth.authorizationServer=https://idcs.example.com \
     -Dmcp.oauth.scopes=openid \
-    -Dauth.userTokenValidation.introspection.endpoint=https://idcs.example.com/oauth2/v1/introspect \
-    -Dauth.userTokenValidation.introspection.clientId=mcp-user-login-client-id \
-    -Dauth.userTokenValidation.introspection.clientSecret='mcp-user-login-client-secret' \
-    -Ddeepsec.enabled=true \
-    -Ddeepsec.databaseToken.tokenEndpoint=https://idcs.example.com/oauth2/v1/token \
-    -Ddeepsec.databaseToken.clientId=database-token-client-id \
-    -Ddeepsec.databaseToken.clientSecret='database-token-client-secret' \
-    -Ddeepsec.databaseToken.scope=OracleDBDB_ACCESS_SCOPE \
+    -DuserAuth.tokenValidation.introspection.endpoint=https://idcs.example.com/oauth2/v1/introspect \
+    -DuserAuth.tokenValidation.introspection.clientId=mcp-user-login-client-id \
+    -DuserAuth.tokenValidation.introspection.clientSecret='mcp-user-login-client-secret' \
+    -DdeepDataSecurity.enabled=true \
+    -DdeepDataSecurity.databaseToken.tokenEndpoint=https://idcs.example.com/oauth2/v1/token \
+    -DdeepDataSecurity.databaseToken.clientId=database-token-client-id \
+    -DdeepDataSecurity.databaseToken.clientSecret='database-token-client-secret' \
+    -DdeepDataSecurity.databaseToken.scope=OracleDBDB_ACCESS_SCOPE \
     -DconfigFile=/path/to/config.yaml \
     -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
@@ -924,13 +925,13 @@ java \
 The user-login scope and the DeepSec database-token scope are intentionally separate:
 
 * `mcp.oauth.scopes=openid` is advertised to MCP clients for browser login.
-* `deepsec.databaseToken.scope=OracleDBDB_ACCESS_SCOPE` is used by the MCP server to request the database-scoped token used in the Oracle JDBC end-user security context.
+* `deepDataSecurity.databaseToken.scope=OracleDBDB_ACCESS_SCOPE` is used by the MCP server to request the database-scoped token used in the Oracle JDBC end-user security context.
 
 #### DeepSec integration test
 
 The database-backed test is disabled during normal builds. It starts a localhost OAuth callback listener, opens the OCI browser login, uses Authorization Code with PKCE, and keeps the resulting user token only in memory. It then uses the production OJDBC provider SPI with a one-connection UCP pool and verifies `ORA_END_USER_CONTEXT.username`, mapped roles from `v$end_user_data_role`, and a real Oracle transaction resumed across separate simulated requests. The transaction check creates a savepoint, verifies that `DBMS_TRANSACTION.LOCAL_TRANSACTION_ID` remains stable after resumption, and exercises both commit and rollback through the production transaction registry.
 
-The configured `deepsec.it.userLogin.callbackUri` must be registered on the OCI application and its port must be free while Maven runs. The test uses `db.*`, `deepsec.databaseToken.*`, `auth.authorizationServer`, `deepsec.it.userLogin.*`, and `mcp.oauth.resourceUrl`. Do not run the MCP server on the callback port at the same time.
+The configured `deepsec.it.userLogin.callbackUri` must be registered on the OCI application and its port must be free while Maven runs. The test uses `database.*`, `deepDataSecurity.databaseToken.*`, `userAuth.authorizationServer`, the test-only `deepsec.it.userLogin.*` settings, and `mcp.oauth.resourceUrl`. Do not run the MCP server on the callback port at the same time.
 
 For a one-user smoke test, provide only the expected mapped database roles. The expected username defaults to the access token's `sub` claim and can be overridden with `DEEPSEC_IT_USER_A_USERNAME`:
 
@@ -938,15 +939,15 @@ For a one-user smoke test, provide only the expected mapped database roles. The 
 export DEEPSEC_IT_ENABLED=true
 export DEEPSEC_IT_USER_A_ROLES='CUSTOMER_READER,MCP_DUMMY_READER'
 
-mvn -Ddb.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
-    -Ddb.user=mcp_app_user \
-    -Ddb.password='your-db-password' \
-    -Dojdbc.ext.dir=/path/to/ojdbc/extensions \
-    -Ddeepsec.databaseToken.tokenEndpoint=https://idcs.example.com/oauth2/v1/token \
-    -Ddeepsec.databaseToken.clientId=database-token-client-id \
-    -Ddeepsec.databaseToken.clientSecret='database-token-client-secret' \
-    -Ddeepsec.databaseToken.scope=OracleDBDB_ACCESS_SCOPE \
-    -Dauth.authorizationServer=https://idcs.example.com \
+mvn -Ddatabase.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
+    -Ddatabase.user=mcp_app_user \
+    -Ddatabase.password='your-db-password' \
+    -Ddatabase.jdbc.extensionsDirectory=/path/to/ojdbc/extensions \
+    -DdeepDataSecurity.databaseToken.tokenEndpoint=https://idcs.example.com/oauth2/v1/token \
+    -DdeepDataSecurity.databaseToken.clientId=database-token-client-id \
+    -DdeepDataSecurity.databaseToken.clientSecret='database-token-client-secret' \
+    -DdeepDataSecurity.databaseToken.scope=OracleDBDB_ACCESS_SCOPE \
+    -DuserAuth.authorizationServer=https://idcs.example.com \
     -Ddeepsec.it.userLogin.clientId=user-login-client-id \
     -Ddeepsec.it.userLogin.clientSecret='user-login-client-secret' \
     -Ddeepsec.it.userLogin.callbackUri=http://localhost:8080/auth/callback \
@@ -955,7 +956,7 @@ mvn -Ddb.url='jdbc:oracle:thin:@mydb_high?TNS_ADMIN=/path/to/wallet' \
     -Dtest=DeepSecIntegrationTest test
 ```
 
-The default one-user run also injects a distinct authenticated owner and verifies it is rejected before the held JDBC connection is touched, so a second OCI account is not required to test transaction ownership. For the stronger identity-provider check, set `DEEPSEC_IT_TWO_USERS=true`. The test then opens a second login, verifies the two token subjects differ, executes as A, then B, then A again on a pool limited to one physical connection, and uses the real user B owner for the denial check. OCI may bind the browser session to user A even with `prompt=login`; log out first or open the printed user-B authorization URL in an incognito/separate browser profile. Set `DEEPSEC_IT_USER_B_ROLES` only when that account has mapped roles that should also be asserted. Role names are compared exactly as the database returns them. `DEEPSEC_IT_DATABASE_ACCESS_TOKEN` remains available as an optional override; otherwise the test fetches the application database token through the configured `deepsec.*` provider.
+The default one-user run also injects a distinct authenticated owner and verifies it is rejected before the held JDBC connection is touched, so a second OCI account is not required to test transaction ownership. For the stronger identity-provider check, set `DEEPSEC_IT_TWO_USERS=true`. The test then opens a second login, verifies the two token subjects differ, executes as A, then B, then A again on a pool limited to one physical connection, and uses the real user B owner for the denial check. OCI may bind the browser session to user A even with `prompt=login`; log out first or open the printed user-B authorization URL in an incognito/separate browser profile. Set `DEEPSEC_IT_USER_B_ROLES` only when that account has mapped roles that should also be asserted. Role names are compared exactly as the database returns them. `DEEPSEC_IT_DATABASE_ACCESS_TOKEN` remains available as an optional override; otherwise the test fetches the application database token through the configured `deepDataSecurity.*` provider.
 
 ### 4.7. Enabling Authentication without OAuth2
 
@@ -963,12 +964,12 @@ _Note: This mode is used only for development and testing purposes._
 
 ```bash
 java \
-    -Ddb.url=jdbc:oracle:thin:@host:1521/service \
-    -Dtransport=http \
-    -Dhttps.port=45450 \
-    -DcertificatePath=/path/to/your-certificate.p12 \
-    -DcertificatePassword=yourPassword \
-    -Dauth.enabled=true \
+    -Ddatabase.url=jdbc:oracle:thin:@host:1521/service \
+    -Dnetwork.transport=http \
+    -Dnetwork.https.port=45450 \
+    -Dnetwork.https.certificatePath=/path/to/your-certificate.p12 \
+    -Dnetwork.https.certificatePassword=yourPassword \
+    -DuserAuth.enabled=true \
     -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
 ```
 
@@ -1006,7 +1007,10 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
 
 ---
 
-## 5. Supported System Properties
+## 5. Supported Runtime Properties
+
+Use these canonical names in runtime YAML and with JVM `-D` properties. Legacy names remain
+supported for compatibility; canonical names take precedence when both are supplied.
 
 <table>
   <thead>
@@ -1019,25 +1023,25 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
   </thead>
   <tbody>
     <tr>
-      <td><code>db.url</code></td>
+      <td><code>database.url</code></td>
       <td><strong>No*</strong></td>
       <td>JDBC URL for Oracle Database. <em>Required only if any database tools are enabled</em> (not required for log-analyzer–only setups).</td>
       <td><code>jdbc:oracle:thin:@your-host:1521/your-service</code></td>
     </tr>
     <tr>
-      <td><code>db.user</code></td>
+      <td><code>database.user</code></td>
       <td><strong>No*</strong></td>
-      <td>Database username (not required if using token-based auth or centralized config loaded via <code>ojdbc.ext.dir</code>)</td>
+      <td>Database username (not required if using token-based auth or centralized config loaded via <code>database.jdbc.extensionsDirectory</code>)</td>
       <td><code>ADMIN</code> or <code>your-username</code></td>
     </tr>
     <tr>
-      <td><code>db.password</code></td>
+      <td><code>database.password</code></td>
       <td><strong>No*</strong></td>
-      <td>Database password (not required if using token-based auth or centralized config loaded via <code>ojdbc.ext.dir</code>)</td>
+      <td>Database password (not required if using token-based auth or centralized config loaded via <code>database.jdbc.extensionsDirectory</code>)</td>
       <td><code>your-secure-password</code></td>
     </tr>
     <tr>
-      <td><code>tools</code> (aka <code>-Dtools</code>)</td>
+      <td><code>toolSelection.enabled</code></td>
       <td>No</td>
       <td>
         Comma-separated allow-list of tool or toolset names to enable (case-insensitive).<br/>
@@ -1054,7 +1058,7 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>mcp-admin, log-analyzer</code> or <code>reporting</code></td>
     </tr>
     <tr>
-      <td><code>ojdbc.ext.dir</code></td>
+      <td><code>database.jdbc.extensionsDirectory</code></td>
       <td>No</td>
       <td>
         Directory to load extra jars at runtime (keeps the MCP jar lean).  
@@ -1063,19 +1067,19 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>/opt/oracle/ext-jars</code></td>
     </tr>
     <tr>
-      <td><code>ingestRootDir</code></td>
+      <td><code>dataIngestion.rootDirectory</code></td>
       <td>No</td>
       <td>Root directory for local file ingestion with the <code>embed</code> tool. Required only for <code>action=file</code> and <code>action=files</code>. Requested file paths must resolve inside this directory.</td>
       <td><code>/opt/mcp/ingest</code></td>
     </tr>
     <tr>
-      <td><code>ingestMaxFileSizeMb</code></td>
+      <td><code>dataIngestion.maxFileSizeMb</code></td>
       <td>No</td>
       <td>Maximum file size for <code>embed</code> ingestion from local files and OCI bucket objects. The value is in MB. Default is <code>50</code>.</td>
       <td><code>50</code></td>
     </tr>
     <tr>
-      <td><code>transport</code></td>
+      <td><code>network.transport</code></td>
       <td>No</td>
       <td>
         Transport mode for the MCP server. Supported values:
@@ -1084,7 +1088,7 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>http</code></td>
     </tr>
     <tr>
-      <td><code>https.port</code></td>
+      <td><code>network.https.port</code></td>
       <td>No</td>
       <td>
         TCP port used for SSL connection.
@@ -1092,19 +1096,19 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>45451</code></td>
     </tr>
     <tr>
-      <td><code>http.allowedOriginalHosts</code></td>
+      <td><code>network.http.allowedOriginalHosts</code></td>
       <td>No</td>
       <td>Optional comma-separated browser-origin host allowlist. When configured, requests without an <code>Origin</code> header or with an untrusted origin are rejected before MCP dispatch. Disabled by default for non-browser client compatibility.</td>
-      <td><code>-Dhttp.allowedOriginalHosts=mcp.example.com</code></td>
+      <td><code>-Dnetwork.http.allowedOriginalHosts=mcp.example.com</code></td>
     </tr>
     <tr>
-      <td><code>http.allowUnauthenticatedForDevelopment</code></td>
+      <td><code>network.http.allowUnauthenticatedForDevelopment</code></td>
       <td>No</td>
       <td>Allows unauthenticated HTTP transport for local development only. Defaults to <code>false</code>; enabling it emits a security warning.</td>
-      <td><code>-Dhttp.allowUnauthenticatedForDevelopment=true</code></td>
+      <td><code>-Dnetwork.http.allowUnauthenticatedForDevelopment=true</code></td>
     </tr>
     <tr>
-      <td><code>certificatePath</code></td>
+      <td><code>network.https.certificatePath</code></td>
       <td>No</td>
       <td>
         Path to SSL certificate keystore (Support PKCS12)
@@ -1112,7 +1116,7 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>/path/to/your/certificate</code></td>
     </tr>
     <tr>
-      <td><code>certificatePassword</code></td>
+      <td><code>network.https.certificatePassword</code></td>
       <td>No</td>
       <td>
         Password of SSL certificate keystore
@@ -1131,41 +1135,41 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td>/opt/mcp/runtime-config.yaml</td>
     </tr>
     <tr>
-      <td><code>auth.enabled</code></td>
+      <td><code>userAuth.enabled</code></td>
       <td>No</td>
       <td>Whether HTTP authentication is required or not (default <code>false</code>).<br/>
       All the subsequent OAuth2 system properties are ignored if this property is set to <code>false</code>.</td>
-      <td><code>-Dauth.enabled=true</code></td>
+      <td><code>-DuserAuth.enabled=true</code></td>
     </tr>
     <tr>
-      <td><code>auth.authorizationServer</code></td>
+      <td><code>userAuth.authorizationServer</code></td>
       <td>No</td>
       <td>Configure the OAuth2 server URL</td>
-      <td><code>-Dauth.authorizationServer=http://localhost:8080/realms/master</code></td>
+      <td><code>-DuserAuth.authorizationServer=http://localhost:8080/realms/master</code></td>
     </tr>
     <tr>
-      <td><code>auth.userTokenValidation.introspection.endpoint</code></td>
+      <td><code>userAuth.tokenValidation.introspection.endpoint</code></td>
       <td>No</td>
       <td>The OAuth2 server endpoint used to validate and obtain metadata about an access token.</td>
-      <td><code>-Dauth.userTokenValidation.introspection.endpoint=http://localhost:8080/realms/mcp/protocol/openid-connect/token/introspect</code></td>
+      <td><code>-DuserAuth.tokenValidation.introspection.endpoint=http://localhost:8080/realms/mcp/protocol/openid-connect/token/introspect</code></td>
     </tr>
     <tr>
-      <td><code>auth.userTokenValidation.introspection.clientId</code></td>
+      <td><code>userAuth.tokenValidation.introspection.clientId</code></td>
       <td>No</td>
       <td>The client identifier for registering with the configured OAuth2 server.</td>
-      <td><code>-Dauth.userTokenValidation.introspection.clientId=oracle-db-toolkit</code></td>
+      <td><code>-DuserAuth.tokenValidation.introspection.clientId=oracle-db-toolkit</code></td>
     </tr>
     <tr>
-      <td><code>auth.userTokenValidation.introspection.clientSecret</code></td>
+      <td><code>userAuth.tokenValidation.introspection.clientSecret</code></td>
       <td>No</td>
       <td>The confidential key used to authenticate the client to the configured authorization server during the OAuth2 flow.</td>
-      <td><code>-Dauth.userTokenValidation.introspection.clientSecret=Xj9mPqR2vL5kN8tY3hB7wF4uD6cA1eZ0</code></td>
+      <td><code>-DuserAuth.tokenValidation.introspection.clientSecret=Xj9mPqR2vL5kN8tY3hB7wF4uD6cA1eZ0</code></td>
     </tr>
     <tr>
-      <td><code>oauth.scopeClaimPath</code></td>
+      <td><code>userAuth.tokenValidation.introspection.scopeClaimPath</code></td>
       <td>No</td>
       <td>Dot-separated path in the OAuth2 introspection response that contains scopes. Defaults to <code>scope</code>.</td>
-      <td><code>-Doauth.scopeClaimPath=scope</code></td>
+      <td><code>-DuserAuth.tokenValidation.introspection.scopeClaimPath=scope</code></td>
     </tr>
     <tr>
       <td><code>toolAuthorization.editTools.requireScope</code></td>
@@ -1186,10 +1190,10 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>-Dnetwork.cors.allowedOrigin=http://localhost:6274</code></td>
     </tr>
     <tr>
-      <td><code>auth.openIdDiscoveryRedirectEnabled</code></td>
+      <td><code>userAuth.openIdDiscoveryRedirectEnabled</code></td>
       <td>No</td>
       <td>System property that redirects MCP Server's <code>/.well-known/oauth-authorization-server</code> endpoint to the OAuth server's <code>/.well-known/openid-configuration</code> as a workaround for servers lacking the former (default value is <code>false</code>. If OAuth is not properly configured, then this system property is ignored).</td>
-      <td><code>-Dauth.openIdDiscoveryRedirectEnabled=false</code></td>
+      <td><code>-DuserAuth.openIdDiscoveryRedirectEnabled=false</code></td>
     </tr>
     <tr>
       <td><code>mcp.oauth.scopes</code></td>
@@ -1204,82 +1208,82 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td><code>-Dmcp.oauth.resourceUrl=https://example.com/api/mcp</code></td>
     </tr>
     <tr>
-      <td><code>auth.userTokenValidation.mode</code></td>
+      <td><code>userAuth.tokenValidation.mode</code></td>
       <td>No</td>
       <td>Bearer token validation mode: <code>introspection</code> (default) or <code>jwt</code>.</td>
-      <td><code>-Dauth.userTokenValidation.mode=jwt</code></td>
+      <td><code>-DuserAuth.tokenValidation.mode=jwt</code></td>
     </tr>
     <tr>
-      <td><code>auth.userTokenValidation.jwt.issuer</code></td>
+      <td><code>userAuth.tokenValidation.jwt.issuer</code></td>
       <td>No</td>
-      <td>Expected JWT issuer. Required when <code>auth.userTokenValidation.mode=jwt</code>.</td>
-      <td><code>-Dauth.userTokenValidation.jwt.issuer=https://identity.example.com/</code></td>
+      <td>Expected JWT issuer. Required when <code>userAuth.tokenValidation.mode=jwt</code>.</td>
+      <td><code>-DuserAuth.tokenValidation.jwt.issuer=https://identity.example.com/</code></td>
     </tr>
     <tr>
-      <td><code>auth.userTokenValidation.jwt.jwksUri</code></td>
+      <td><code>userAuth.tokenValidation.jwt.jwksUri</code></td>
       <td>No</td>
-      <td>JWKS endpoint used to fetch token-signing public keys. Required when <code>auth.userTokenValidation.mode=jwt</code>.</td>
-      <td><code>-Dauth.userTokenValidation.jwt.jwksUri=https://identity.example.com/.well-known/jwks.json</code></td>
+      <td>JWKS endpoint used to fetch token-signing public keys. Required when <code>userAuth.tokenValidation.mode=jwt</code>.</td>
+      <td><code>-DuserAuth.tokenValidation.jwt.jwksUri=https://identity.example.com/.well-known/jwks.json</code></td>
     </tr>
     <tr>
-      <td><code>auth.userTokenValidation.jwt.audience</code></td>
+      <td><code>userAuth.tokenValidation.jwt.audience</code></td>
       <td>No</td>
-      <td>Expected JWT audience. Required when <code>auth.userTokenValidation.mode=jwt</code>.</td>
-      <td><code>-Dauth.userTokenValidation.jwt.audience=https://identity.example.com</code></td>
+      <td>Expected JWT audience. Required when <code>userAuth.tokenValidation.mode=jwt</code>.</td>
+      <td><code>-DuserAuth.tokenValidation.jwt.audience=https://identity.example.com</code></td>
     </tr>
     <tr>
-      <td><code>auth.userTokenValidation.jwt.jwksCacheSeconds</code></td>
+      <td><code>userAuth.tokenValidation.jwt.jwksCacheSeconds</code></td>
       <td>No</td>
-      <td>JWKS cache duration in seconds when <code>auth.userTokenValidation.mode=jwt</code>. Defaults to <code>600</code>.</td>
-      <td><code>-Dauth.userTokenValidation.jwt.jwksCacheSeconds=600</code></td>
+      <td>JWKS cache duration in seconds when <code>userAuth.tokenValidation.mode=jwt</code>. Defaults to <code>600</code>.</td>
+      <td><code>-DuserAuth.tokenValidation.jwt.jwksCacheSeconds=600</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.enabled</code></td>
+      <td><code>deepDataSecurity.enabled</code></td>
       <td>No</td>
       <td>Enables Oracle Deep Data Security end-user context propagation through OJDBC.</td>
-      <td><code>-Ddeepsec.enabled=true</code></td>
+      <td><code>-DdeepDataSecurity.enabled=true</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.databaseToken.tokenEndpoint</code></td>
+      <td><code>deepDataSecurity.databaseToken.tokenEndpoint</code></td>
       <td>No</td>
       <td>OAuth2 token endpoint used to obtain the database-scoped token for DeepSec.</td>
-      <td><code>-Ddeepsec.databaseToken.tokenEndpoint=https://idcs.example.com/oauth2/v1/token</code></td>
+      <td><code>-DdeepDataSecurity.databaseToken.tokenEndpoint=https://idcs.example.com/oauth2/v1/token</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.databaseToken.clientId</code></td>
+      <td><code>deepDataSecurity.databaseToken.clientId</code></td>
       <td>No</td>
       <td>Client ID used by the MCP server to obtain the database-scoped DeepSec token.</td>
-      <td><code>-Ddeepsec.databaseToken.clientId=database-token-client-id</code></td>
+      <td><code>-DdeepDataSecurity.databaseToken.clientId=database-token-client-id</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.databaseToken.clientSecret</code></td>
+      <td><code>deepDataSecurity.databaseToken.clientSecret</code></td>
       <td>No</td>
       <td>Client secret used by the MCP server to obtain the database-scoped DeepSec token.</td>
-      <td><code>-Ddeepsec.databaseToken.clientSecret=database-token-client-secret</code></td>
+      <td><code>-DdeepDataSecurity.databaseToken.clientSecret=database-token-client-secret</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.databaseToken.scope</code></td>
+      <td><code>deepDataSecurity.databaseToken.scope</code></td>
       <td>No</td>
       <td>Database resource scope used only for the DeepSec/database token. Do not confuse this with <code>mcp.oauth.scopes</code>.</td>
-      <td><code>-Ddeepsec.databaseToken.scope=OracleDBDB_ACCESS_SCOPE</code></td>
+      <td><code>-DdeepDataSecurity.databaseToken.scope=OracleDBDB_ACCESS_SCOPE</code></td>
     </tr>
     <tr>
-      <td><code>deepsec.databaseToken.staticValue</code></td>
+      <td><code>deepDataSecurity.databaseToken.staticValue</code></td>
       <td>No</td>
-      <td>Static database-scoped token for local smoke tests. Prefer <code>deepsec.databaseToken.tokenEndpoint</code> plus client credentials for normal use.</td>
-      <td><code>-Ddeepsec.databaseToken.staticValue=...</code></td>
+      <td>Static database-scoped token for local smoke tests. Prefer <code>deepDataSecurity.databaseToken.tokenEndpoint</code> plus client credentials for normal use.</td>
+      <td><code>-DdeepDataSecurity.databaseToken.staticValue=...</code></td>
     </tr>
   </tbody>
 </table>
 
 <i>* Note:</i> If you don’t set tools, all tools are available by default.
 
-<i>* Conditional requirement:</i> <code>db.url</code> is required **only if** any database tool is enabled via <code>-Dtools</code>.
+<i>* Conditional requirement:</i> <code>database.url</code> is required **only if** any database tool is enabled via <code>-DtoolSelection.enabled</code>.
 
-If you enable **only** the Log Analyzer tools, you can omit <code>db.url</code>.
+If you enable **only** the Log Analyzer tools, you can omit <code>database.url</code>.
 
-<i>* Note:</i> If you’re using token-based authentication (e.g., IAM tokens) or a centralized configuration provided via the JARs you place in `-Dojdbc.ext.dir`,
-you can omit `db.user` and `db.password`. The driver will pick up credentials and security settings from those extensions.
+<i>* Note:</i> If you’re using token-based authentication (e.g., IAM tokens) or a centralized configuration provided via the JARs you place in `-Ddatabase.jdbc.extensionsDirectory`,
+you can omit `database.user` and `database.password`. The driver will pick up credentials and security settings from those extensions.
 
 ---
 
@@ -1305,16 +1309,16 @@ podman run --rm \
   -p 45451:45451 \
   -v /path/to/certificate:/app/certif.p12:ro,z \
   -e JAVA_TOOL_OPTIONS="\
-    -Dtransport=http \
-    -Dhttps.port=45451 \
-    -DcertificatePath=[path/to/certificate] \
-    -DcertificatePassword=[password] \
-    -Dhttp.allowedOriginalHosts=your-public-hostname \
-    -Dauth.enabled=true \
-    -Dtools=get-jdbc-stats,get-jdbc-queries \
-    -Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service \
-    -Ddb.user=your_user \
-    -Ddb.password=your_password" \
+    -Dnetwork.transport=http \
+    -Dnetwork.https.port=45451 \
+    -Dnetwork.https.certificatePath=[path/to/certificate] \
+    -Dnetwork.https.certificatePassword=[password] \
+    -Dnetwork.http.allowedOriginalHosts=your-public-hostname \
+    -DuserAuth.enabled=true \
+    -DtoolSelection.enabled=get-jdbc-stats,get-jdbc-queries \
+    -Ddatabase.url=jdbc:oracle:thin:@your-host:1521/your-service \
+    -Ddatabase.user=your_user \
+    -Ddatabase.password=your_password" \
   oracle-db-mcp-toolkit:1.0.0
 ```
 
@@ -1328,7 +1332,7 @@ You can then configure Cline or Claude Desktop as described in the Using HTTP fr
 
 If you need extra JDBC / security jars (e.g. `oraclepki`, wallets, centralized config, or providers that fetch full
 database credentials such as username, password, and connection string from a vault secret),
-mount them and point `ojdbc.ext.dir` at that directory:
+mount them and point `database.jdbc.extensionsDirectory` at that directory:
 
 ```bash
 podman run --rm \
@@ -1337,15 +1341,15 @@ podman run --rm \
   -v /path/to/ext:/ext:ro \
   -v /path/to/certificate:/app/certif.p12:ro,z \
   -e JAVA_TOOL_OPTIONS="\
-    -Dtransport=http \
-    -Dhttps.port=45451 \
-    -Dhttp.allowedOriginalHosts=your-public-hostname \
-    -Dauth.enabled=true \
-    -Dtools=get-jdbc-stats,get-jdbc-queries \
-    -Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service \
-    -Ddb.user=your_user \
-    -Ddb.password=your_password \
-    -Dojdbc.ext.dir=/ext" \
+    -Dnetwork.transport=http \
+    -Dnetwork.https.port=45451 \
+    -Dnetwork.http.allowedOriginalHosts=your-public-hostname \
+    -DuserAuth.enabled=true \
+    -DtoolSelection.enabled=get-jdbc-stats,get-jdbc-queries \
+    -Ddatabase.url=jdbc:oracle:thin:@your-host:1521/your-service \
+    -Ddatabase.user=your_user \
+    -Ddatabase.password=your_password \
+    -Ddatabase.jdbc.extensionsDirectory=/ext" \
   oracle-db-mcp-toolkit:1.0.0
 ```
 
@@ -1370,7 +1374,7 @@ In this configuration, Claude Desktop runs `podman run --rm -i ...à and connect
         "-i",
         "-v", "/absolute/path/to/ext:/ext:ro",
         "-e",
-        "JAVA_TOOL_OPTIONS=-Ddb.url=jdbc:oracle:thin:@your-host:1521/your-service -Ddb.user=your_user -Ddb.password=your_password -Dojdbc.ext.dir=/ext -DconfigFile=/config/config.yaml",
+        "JAVA_TOOL_OPTIONS=-Ddatabase.url=jdbc:oracle:thin:@your-host:1521/your-service -Ddatabase.user=your_user -Ddatabase.password=your_password -Ddatabase.jdbc.extensionsDirectory=/ext -DconfigFile=/config/config.yaml",
         "oracle-db-mcp-toolkit:1.0.0"
       ]
     }
