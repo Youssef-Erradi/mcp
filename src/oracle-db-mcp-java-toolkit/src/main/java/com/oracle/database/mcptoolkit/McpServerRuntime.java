@@ -15,6 +15,7 @@ import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
+import java.util.Objects;
 import java.util.logging.Logger;
 
 /** Creates toolkit MCP servers without owning the embedding application's web-server lifecycle. */
@@ -53,11 +54,22 @@ public final class McpServerRuntime {
     return server;
   }
 
-  /** Reloads custom-tool configuration for an already running server. */
-  public static synchronized void reloadConfiguration() {
-    if (server == null) return;
-    config = Utils.loadConfig();
-    Utils.reloadCustomTools(server, config);
+  /** Reloads custom-tool configuration from the configured YAML file. */
+  public static synchronized void reloadCustomToolConfiguration() {
+    updateConfiguration(Utils.loadConfig());
+  }
+
+  /**
+   * Replaces the active toolkit configuration and refreshes custom tools on the running server.
+   *
+   * <p>Embedding applications that manage configuration themselves can use this instead of the
+   * YAML-file reload path.</p>
+   */
+  public static synchronized void updateConfiguration(ServerConfig updatedConfig) {
+    config = Objects.requireNonNull(updatedConfig, "updatedConfig");
+    if (server != null) {
+      Utils.reloadCustomTools(server, config);
+    }
   }
 
   public static ServerConfig getConfig() {
@@ -66,12 +78,6 @@ public final class McpServerRuntime {
 
   public static McpSyncServer getServer() {
     return server;
-  }
-
-  /** Registers a server created by the standalone launcher for shared admin-tool access. */
-  public static synchronized void register(ServerConfig currentConfig, McpSyncServer currentServer) {
-    config = currentConfig;
-    server = currentServer;
   }
 
   private static void initializeConfiguration(RuntimeConfigRoot runtimeConfig) {

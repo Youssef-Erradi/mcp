@@ -189,7 +189,7 @@ public class OracleDatabaseMCPToolkit {
       if (nowModified != lastModified && nowModified != 0) {
         lastModified = nowModified;
         try {
-          McpServerRuntime.reloadConfiguration();
+          McpServerRuntime.reloadCustomToolConfiguration();
           LOG.info("[oracle-db-mcp-toolkit] Reloaded configuration and refreshed custom tools.");
         } catch (Exception e) {
           System.err.println("[oracle-db-mcp-toolkit] Failed to reload config: " + e);
