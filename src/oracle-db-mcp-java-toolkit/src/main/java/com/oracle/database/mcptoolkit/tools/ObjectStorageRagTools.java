@@ -29,6 +29,7 @@ import static com.oracle.database.mcptoolkit.Utils.openConnection;
 import static com.oracle.database.mcptoolkit.Utils.getOrDefault;
 import static com.oracle.database.mcptoolkit.Utils.jsonSchema;
 import static com.oracle.database.mcptoolkit.Utils.tryCall;
+import static com.oracle.database.mcptoolkit.Utils.textToolResult;
 
 /**
  * Provides the {@code oci-storage} tool for browsing OCI Object Storage buckets
@@ -133,7 +134,7 @@ public class ObjectStorageRagTools {
                     .build();
           });
 
-          default -> new McpSchema.CallToolResult(
+          default -> textToolResult(
                   "Unknown action '" + action + "'. Must be: list-objects", true);
         };
       })

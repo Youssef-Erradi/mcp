@@ -28,6 +28,7 @@ public final class LoadedConstants {
   public static String KEYSTORE_PASSWORD;
   public static String HTTP_ALLOWED_ORIGINAL_HOSTS;
   public static boolean HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT;
+  public static boolean HTTP_STATELESS;
 
   /** Tools and database config. */
   public static String TOOLS;
@@ -92,6 +93,7 @@ public final class LoadedConstants {
     HTTP_ALLOWED_ORIGINAL_HOSTS = value("network.http.allowedOriginalHosts", yamlProperties, systemProperties, null);
     HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT = bool(
         "network.http.allowUnauthenticatedForDevelopment", yamlProperties, systemProperties, false);
+    HTTP_STATELESS = bool("network.http.stateless", yamlProperties, systemProperties, false);
     TOOLS = value("toolSelection.enabled", yamlProperties, systemProperties, null);
     INGEST_ROOT_DIR = value("dataIngestion.rootDirectory", yamlProperties, systemProperties, null);
     INGEST_MAX_FILE_SIZE_MB = value("dataIngestion.maxFileSizeMb", yamlProperties, systemProperties, null);

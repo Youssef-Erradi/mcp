@@ -40,11 +40,11 @@ class OracleJDBCLogAnalyzerTest {
   @Test
   void testFilePathParameterInAllTools() {
     for (var tool : tools.values()) {
-      final var properties = tool.inputSchema().properties();
+      final var properties = (Map<String, Object>) tool.inputSchema().get("properties");
       assertTrue(properties.containsKey("filePath"), "Every tool " +
         "should have filePath parameter");
 
-      final var filePathProperty = (Map<String, String>) properties.get("filePath");
+      final var filePathProperty = (Map<String, Object>) properties.get("filePath");
       assertEquals("string", filePathProperty.get("type"));
     }
   }

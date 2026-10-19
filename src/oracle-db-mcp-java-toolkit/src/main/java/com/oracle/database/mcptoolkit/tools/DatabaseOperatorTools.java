@@ -114,7 +114,7 @@ public final class DatabaseOperatorTools {
           Connection c = lease.c;
           String sql = String.valueOf(callReq.arguments().get("sql"));
           if (!looksSelect(sql)) {
-            return new McpSchema.CallToolResult("Only SELECT is allowed", true);
+            return textToolResult("Only SELECT is allowed", true);
           }
           var rows = rsToList(c.createStatement().executeQuery(sql));
           return McpSchema.CallToolResult.builder()
@@ -140,8 +140,7 @@ public final class DatabaseOperatorTools {
           String sql = String.valueOf(callReq.arguments().get("sql"));
           boolean inTx = !lease.closeOnExit;
           if (inTx && isDdl(sql)) {
-            return new McpSchema.CallToolResult(
-                    "DDL is not allowed inside a transaction. Run this statement without txId.", true);
+            return textToolResult("DDL is not allowed inside a transaction. Run this statement without txId.", true);
           }
           int n = execUpdate(c, sql);
           return McpSchema.CallToolResult.builder()
@@ -168,7 +167,7 @@ public final class DatabaseOperatorTools {
             try (Connection c = openConnection(config, null)) {
               String sql = String.valueOf(callReq.arguments().get("sql"));
               execUpdate(c, sql);
-              return new McpSchema.CallToolResult("OK", false);
+              return textToolResult("OK", false);
             }
           });
           case "drop" -> tryCall(() -> {
@@ -227,7 +226,7 @@ public final class DatabaseOperatorTools {
             try (Connection c = openConnection(config, null)) {
               String table = String.valueOf(callReq.arguments().get("table"));
               if (table == null || table.isBlank()) {
-                return new McpSchema.CallToolResult("'table' is required for action=describe", true);
+                return textToolResult("'table' is required for action=describe", true);
               }
               DatabaseMetaData md = c.getMetaData();
               String schema = Optional.ofNullable(c.getSchema())
@@ -274,7 +273,7 @@ public final class DatabaseOperatorTools {
                       .build();
             }
           });
-          default -> new McpSchema.CallToolResult(
+          default -> textToolResult(
                   "Unknown action '" + action + "'. Must be one of: create, drop, list, describe", true);
         };
       })
@@ -309,28 +308,28 @@ public final class DatabaseOperatorTools {
           });
           case "resume" -> tryCall(() -> {
             if (txId == null) {
-              return new McpSchema.CallToolResult("'txId' is required for action=resume", true);
+              return textToolResult("'txId' is required for action=resume", true);
             }
             if (TX.isActive(currentTransactionOwner(), txId)) {
-              return new McpSchema.CallToolResult("{\"ok\":true}", false);
+              return textToolResult("{\"ok\":true}", false);
             }
-            return new McpSchema.CallToolResult("Unknown transaction", true);
+            return textToolResult("Unknown transaction", true);
           });
           case "commit" -> tryCall(() -> {
             if (txId == null) {
-              return new McpSchema.CallToolResult("'txId' is required for action=commit", true);
+              return textToolResult("'txId' is required for action=commit", true);
             }
             TX.commit(currentTransactionOwner(), txId);
-            return new McpSchema.CallToolResult("{\"ok\":true}", false);
+            return textToolResult("{\"ok\":true}", false);
           });
           case "rollback" -> tryCall(() -> {
             if (txId == null) {
-              return new McpSchema.CallToolResult("'txId' is required for action=rollback", true);
+              return textToolResult("'txId' is required for action=rollback", true);
             }
             TX.rollback(currentTransactionOwner(), txId);
-            return new McpSchema.CallToolResult("{\"ok\":true}", false);
+            return textToolResult("{\"ok\":true}", false);
           });
-          default -> new McpSchema.CallToolResult(
+          default -> textToolResult(
                   "Unknown action '" + action + "'. Must be one of: start, resume, commit, rollback", true);
         };
       })
@@ -504,7 +503,7 @@ public final class DatabaseOperatorTools {
         try (Connection c = openConnection(config, null)) {
           final String sql = String.valueOf(callReq.arguments().get("sql"));
           if (sql == null || sql.isBlank()) {
-            return new McpSchema.CallToolResult("Parameter 'sql' is required", true);
+            return textToolResult("Parameter 'sql' is required", true);
           }
           final String mode = String.valueOf(callReq.arguments().getOrDefault("mode", "static"))
                   .toLowerCase(Locale.ROOT);

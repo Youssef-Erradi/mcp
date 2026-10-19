@@ -13,9 +13,13 @@ import com.oracle.database.mcptoolkit.config.DataSourceConfig;
 import com.oracle.database.mcptoolkit.config.RuntimeConfigRoot;
 import com.oracle.database.mcptoolkit.config.ToolConfig;
 import com.oracle.database.mcptoolkit.config.ToolParameterConfig;
+import com.oracle.database.mcptoolkit.oauth.AuthContext;
 import com.oracle.database.mcptoolkit.oauth.EndUserSecurityContextHolder;
 import com.oracle.database.mcptoolkit.tools.*;
+import io.modelcontextprotocol.common.McpTransportContext;
 import io.modelcontextprotocol.server.McpServerFeatures;
+import io.modelcontextprotocol.server.McpStatelessServerFeatures;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.yaml.snakeyaml.Yaml;
@@ -47,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -64,6 +69,14 @@ import java.lang.reflect.Field;
  * <p>The connection pool uses minimal settings (1 connection).
  */
 public class Utils {
+  /** Builds the text-only tool results previously created with the removed two-argument constructor. */
+  public static McpSchema.CallToolResult textToolResult(String text, boolean isError) {
+    return McpSchema.CallToolResult.builder()
+        .addTextContent(text)
+        .isError(isError)
+        .build();
+  }
+
   public static McpSchema.JsonSchema jsonSchema(String schema) {
     try {
       return new ObjectMapper().readValue(schema, McpSchema.JsonSchema.class);
@@ -158,6 +171,51 @@ public class Utils {
     return enabledSpecs;
   }
 
+  /** Adapts the toolkit's tools to the SDK's request-scoped stateless handler API. */
+  static List<McpStatelessServerFeatures.SyncToolSpecification> getStatelessToolSpecifications(
+      ServerConfig config) {
+    return getSyncToolSpecifications(config).stream()
+        .map(Utils::toStatelessToolSpecification)
+        .toList();
+  }
+
+  private static McpStatelessServerFeatures.SyncToolSpecification toStatelessToolSpecification(
+      McpServerFeatures.SyncToolSpecification specification) {
+    return new McpStatelessServerFeatures.SyncToolSpecification(
+        specification.tool(),
+        // Toolkit handlers do not use the stateful exchange; stateless requests have no client exchange.
+        (context, request) -> withStatelessRequestContext(context,
+            () -> specification.callHandler().apply(null, request)));
+  }
+
+  /** Captures filter-populated identity metadata for execution on the stateless request handler. */
+  public static McpTransportContext captureStatelessTransportContext() {
+    Map<String, Object> metadata = new LinkedHashMap<>();
+    AuthContext.AuthenticationInfo authenticationInfo = AuthContext.get();
+    if (authenticationInfo != null) metadata.put("oracle.auth", authenticationInfo);
+    EndUserSecurityContextHolder.RequestContext endUserContext =
+        EndUserSecurityContextHolder.captureRequestContext();
+    if (endUserContext != null) metadata.put("oracle.endUserSecurity", endUserContext);
+    return McpTransportContext.create(metadata);
+  }
+
+  private static <T> T withStatelessRequestContext(McpTransportContext context, Supplier<T> handler) {
+    AuthContext.AuthenticationInfo previousAuthentication = AuthContext.get();
+    EndUserSecurityContextHolder.RequestContext previousEndUserContext =
+        EndUserSecurityContextHolder.captureRequestContext();
+    try {
+      AuthContext.restore(context == null ? null
+          : (AuthContext.AuthenticationInfo) context.get("oracle.auth"));
+      EndUserSecurityContextHolder.restoreRequestContext(
+          context == null ? null
+              : (EndUserSecurityContextHolder.RequestContext) context.get("oracle.endUserSecurity"));
+      return handler.get();
+    } finally {
+      AuthContext.restore(previousAuthentication);
+      EndUserSecurityContextHolder.restoreRequestContext(previousEndUserContext);
+    }
+  }
+
   private static String computeSignature(ToolConfig tc) {
     StringBuilder sb = new StringBuilder();
     sb.append(nullToEmpty(tc.name)).append('|')
@@ -240,6 +298,40 @@ public class Utils {
    * that are not present in the new config.
    */
   public static void reloadCustomTools(McpSyncServer server, ServerConfig config) {
+    reloadCustomTools(new CustomToolRegistrar() {
+      @Override
+      public void add(ToolConfig toolConfig, ServerConfig currentConfig) {
+        server.addTool(makeSyncToolSpecification(toolConfig, currentConfig));
+      }
+
+      @Override
+      public void remove(String name) {
+        server.removeTool(name);
+      }
+    }, config);
+  }
+
+  /** Applies custom-tool updates to a stateless HTTP server. */
+  public static void reloadCustomTools(McpStatelessSyncServer server, ServerConfig config) {
+    reloadCustomTools(new CustomToolRegistrar() {
+      @Override
+      public void add(ToolConfig toolConfig, ServerConfig currentConfig) {
+        server.addTool(toStatelessToolSpecification(makeSyncToolSpecification(toolConfig, currentConfig)));
+      }
+
+      @Override
+      public void remove(String name) {
+        server.removeTool(name);
+      }
+    }, config);
+  }
+
+  private interface CustomToolRegistrar {
+    void add(ToolConfig toolConfig, ServerConfig config);
+    void remove(String name);
+  }
+
+  private static void reloadCustomTools(CustomToolRegistrar server, ServerConfig config) {
     synchronized (customToolNames) {
       if (config.tools != null) {
         for (Map.Entry<String, ToolConfig> entry : config.tools.entrySet()) {
@@ -267,18 +359,18 @@ public class Utils {
           String newSig = computeSignature(tc);
 
           if (!customToolNames.contains(name)) {
-            server.addTool(makeSyncToolSpecification(tc, config));
+            server.add(tc, config);
             customToolNames.add(name);
             customToolSignatures.put(name, newSig);
           } else {
             String oldSig = customToolSignatures.get(name);
             if (oldSig == null || !oldSig.equals(newSig)) {
               try {
-                server.removeTool(name);
+                server.remove(name);
               } catch (Exception ex) {
                 LOG.info(() -> "Failed to remove tool for update: " + name + ". Exception: " + ex);
               }
-              server.addTool(makeSyncToolSpecification(tc, config));
+              server.add(tc, config);
               customToolSignatures.put(name, newSig);
             } else {
               LOG.info(() -> "Tool unchanged (skipped): " + name);

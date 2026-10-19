@@ -14,10 +14,13 @@ import com.oracle.database.mcptoolkit.web.RedirectOAuthToOpenIDServlet;
 import com.oracle.database.mcptoolkit.web.WebUtils;
 import com.oracle.database.mcptoolkit.web.WellKnownServlet;
 import io.modelcontextprotocol.server.McpServer;
+import io.modelcontextprotocol.server.McpStatelessSyncServer;
 import io.modelcontextprotocol.server.McpSyncServer;
+import io.modelcontextprotocol.server.transport.HttpServletStatelessServerTransport;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
+import jakarta.servlet.http.HttpServlet;
 
 import org.apache.catalina.Context;
 import org.apache.catalina.startup.Tomcat;
@@ -50,6 +53,7 @@ public class OracleDatabaseMCPToolkit {
 
   static ServerConfig config;
   private static volatile McpSyncServer serverInstance;
+  private static volatile McpStatelessSyncServer statelessServerInstance;
 
 
   static {
@@ -62,7 +66,7 @@ public class OracleDatabaseMCPToolkit {
 
     switch (LoadedConstants.TRANSPORT_KIND) {
       case "http" -> {
-        serverInstance = startHttpServer();
+        startHttpServer();
       }
       case "stdio" -> {
         serverInstance = McpServer
@@ -93,36 +97,53 @@ public class OracleDatabaseMCPToolkit {
     // Prevent instantiation
   }
 
-  /**
-   * Start HTTP Streamable MCP transport on /mcp using Tomcat.
-   */
-  private static McpSyncServer startHttpServer() {
+  /** Starts the configured HTTP MCP transport on /mcp using Tomcat. */
+  private static void startHttpServer() {
     try {
       validateHttpSecurityConfiguration();
-      HttpServletStreamableServerTransportProvider transport =
-        HttpServletStreamableServerTransportProvider.builder()
-          .jsonMapper(McpJsonDefaults.getMapper())
-          .keepAliveInterval(Duration.ofSeconds(60))
-          .mcpEndpoint("/mcp")
-          .build();
+      HttpServlet mcpServlet;
+      if (LoadedConstants.HTTP_STATELESS) {
+        HttpServletStatelessServerTransport transport = HttpServletStatelessServerTransport.builder()
+            .jsonMapper(McpJsonDefaults.getMapper())
+            .messageEndpoint("/mcp")
+            .contextExtractor(request -> Utils.captureStatelessTransportContext())
+            .build();
 
-      McpSyncServer server = McpServer
-        .sync(transport)
-        .serverInfo("oracle-db-mcp-toolkit", "1.0.0")
-        .capabilities(McpSchema.ServerCapabilities.builder()
-           .tools(true)
-           .logging()
-           .build())
-        .tools(Utils.getSyncToolSpecifications(config))
-        .immediateExecution(true)
-        .build();
+        statelessServerInstance = McpServer.sync(transport)
+            .serverInfo("oracle-db-mcp-toolkit", "1.0.0")
+            .capabilities(McpSchema.ServerCapabilities.builder().tools(true).build())
+            .tools(Utils.getStatelessToolSpecifications(config))
+            .immediateExecution(true)
+            .build();
+        mcpServlet = transport;
+        LOG.info("[oracle-db-mcp-toolkit] Stateless HTTP mode enabled");
+      } else {
+        HttpServletStreamableServerTransportProvider transport =
+          HttpServletStreamableServerTransportProvider.builder()
+            .jsonMapper(McpJsonDefaults.getMapper())
+            .keepAliveInterval(Duration.ofSeconds(60))
+            .mcpEndpoint("/mcp")
+            .build();
+
+        serverInstance = McpServer
+          .sync(transport)
+          .serverInfo("oracle-db-mcp-toolkit", "1.0.0")
+          .capabilities(McpSchema.ServerCapabilities.builder()
+             .tools(true)
+             .logging()
+             .build())
+          .tools(Utils.getSyncToolSpecifications(config))
+          .immediateExecution(true)
+          .build();
+        mcpServlet = transport;
+      }
 
       Tomcat tomcat = new Tomcat();
       String ctxPath = "";
       String docBase = new File(".").getAbsolutePath();
       Context ctx = tomcat.addContext(ctxPath, docBase);
 
-      Tomcat.addServlet(ctx, "mcpServlet", transport);
+      Tomcat.addServlet(ctx, "mcpServlet", mcpServlet);
       ctx.addServletMappingDecoded("/mcp/*", "mcpServlet");
 
       Tomcat.addServlet(ctx, "wellKnownServlet", new WellKnownServlet());
@@ -154,9 +175,8 @@ public class OracleDatabaseMCPToolkit {
       tomcat.start();
 
       LOG.info("[oracle-db-mcp-toolkit] HTTP transport started on " + LoadedConstants.HTTPS_PORT + " (endpoint: /mcp)");
-      return server;
     } catch (Exception e) {
-      throw new RuntimeException("Failed to start HTTP/streamable server", e);
+      throw new RuntimeException("Failed to start HTTP MCP server", e);
     }
   }
 
@@ -218,11 +238,17 @@ public class OracleDatabaseMCPToolkit {
     return config;
   }
 
-  /**
-   * Exposes the running McpSyncServer instance for admin operations (e.g., removing tools at runtime).
-   */
+  /** Returns the running stateful server, if this process uses stdio or stateful HTTP. */
   public static McpSyncServer getServer() {
     return serverInstance;
+  }
+
+  /** Removes a tool from whichever HTTP or stdio server is running. */
+  public static void removeToolFromRunningServer(String name) {
+    McpSyncServer syncServer = serverInstance;
+    if (syncServer != null) syncServer.removeTool(name);
+    McpStatelessSyncServer statelessServer = statelessServerInstance;
+    if (statelessServer != null) statelessServer.removeTool(name);
   }
 
   private static void reloadConfigAndResetTools() {
@@ -232,7 +258,11 @@ public class OracleDatabaseMCPToolkit {
       LOG.info(()->"[DEBUG] Old custom tool names: " + Utils.customToolNames);
       LOG.info(()->"[DEBUG] New config tool names: " + newConfig.tools.keySet());
       config = newConfig;      // update reference
-      Utils.reloadCustomTools(serverInstance, newConfig);
+      if (statelessServerInstance != null) {
+        Utils.reloadCustomTools(statelessServerInstance, newConfig);
+      } else if (serverInstance != null) {
+        Utils.reloadCustomTools(serverInstance, newConfig);
+      }
       LOG.info(()->"[DEBUG] Reloaded config and refreshed tools.");
     } catch (Exception e) {
       System.err.println("[oracle-db-mcp-toolkit] Failed to reload config: " + e);

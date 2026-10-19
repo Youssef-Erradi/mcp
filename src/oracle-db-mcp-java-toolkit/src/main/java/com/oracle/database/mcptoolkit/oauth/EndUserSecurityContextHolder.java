@@ -44,6 +44,20 @@ public final class EndUserSecurityContextHolder implements EndUserSecurityContex
     return context == null ? null : context.principal();
   }
 
+  /** Captures the current request identity so it can be restored by a stateless handler. */
+  public static RequestContext captureRequestContext() {
+    return THREAD_CONTEXT.get();
+  }
+
+  /** Restores a captured request identity, clearing the current value when absent. */
+  public static void restoreRequestContext(RequestContext context) {
+    if (context == null) {
+      THREAD_CONTEXT.remove();
+    } else {
+      THREAD_CONTEXT.set(context);
+    }
+  }
+
   /** Clears the request-scoped identity and OJDBC security context from the current thread. */
   public static void clear() {
     THREAD_CONTEXT.remove();
@@ -63,7 +77,7 @@ public final class EndUserSecurityContextHolder implements EndUserSecurityContex
     return NAME;
   }
 
-  private record RequestContext(
+  public record RequestContext(
           EndUserSecurityContext endUserSecurityContext,
           AuthenticatedPrincipal principal) {}
 }

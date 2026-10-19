@@ -23,6 +23,7 @@ class LoadedConstantsTest {
     for (String property : new String[] {
         "transport", "network.transport", "https.port", "network.https.port", "db.user", "database.user",
         "db.password", "database.password", "http.allowedOriginalHosts", "network.http.allowedOriginalHosts",
+        "http.stateless", "network.http.stateless",
         "http.allowUnauthenticatedForDevelopment", "network.http.allowUnauthenticatedForDevelopment",
         "auth.enabled", "userAuth.enabled", "allowedHosts", "network.cors.allowedOrigin",
         "editTools.requireScope", "toolAuthorization.editTools.requireScope",
@@ -99,6 +100,7 @@ class LoadedConstantsTest {
   void loadsHttpSecurityAndDeepSecSettingsFromYamlProperties() {
     RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
         "network.http.allowedOriginalHosts", "mcp.example.com",
+        "network.http.stateless", "true",
         "network.http.allowUnauthenticatedForDevelopment", "true", "userAuth.enabled", "true",
         "deepDataSecurity.enabled", "true",
         "deepDataSecurity.databaseToken.tokenEndpoint", "https://identity.example.com/token"));
@@ -106,10 +108,22 @@ class LoadedConstantsTest {
     LoadedConstants.initialize(root);
 
     assertEquals("mcp.example.com", LoadedConstants.HTTP_ALLOWED_ORIGINAL_HOSTS);
+    assertEquals(true, LoadedConstants.HTTP_STATELESS);
     assertEquals(true, LoadedConstants.HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT);
     assertEquals(true, LoadedConstants.AUTH_ENABLED);
     assertEquals(true, LoadedConstants.DEEPSEC_ENABLED);
     assertEquals("https://identity.example.com/token", LoadedConstants.DEEPSEC_DATABASE_TOKEN_ENDPOINT);
+  }
+
+  @Test
+  void canonicalSystemPropertyOverridesLegacyStatelessAlias() {
+    RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of("network.http.stateless", "false"));
+    System.setProperty("http.stateless", "true");
+    System.setProperty("network.http.stateless", "false");
+
+    LoadedConstants.initialize(root);
+
+    assertEquals(false, LoadedConstants.HTTP_STATELESS);
   }
 
   @Test

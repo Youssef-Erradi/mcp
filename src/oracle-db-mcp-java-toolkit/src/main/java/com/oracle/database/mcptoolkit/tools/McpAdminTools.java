@@ -337,7 +337,7 @@ public class McpAdminTools {
               }
               // Try to remove the tool from the running server as well
               try {
-                OracleDatabaseMCPToolkit.getServer().removeTool(name);
+                OracleDatabaseMCPToolkit.removeToolFromRunningServer(name);
                 Utils.unregisterCustomToolLocally(name);
               } catch (Exception ignored) {}
 
@@ -408,8 +408,7 @@ public class McpAdminTools {
 
           // Try to remove stale instance at runtime (best-effort hot update); server will re-add on reload
           try {
-            var srv = OracleDatabaseMCPToolkit.getServer();
-            if (srv != null) srv.removeTool(name);
+            OracleDatabaseMCPToolkit.removeToolFromRunningServer(name);
           } catch (Exception ignored) {}
 
 

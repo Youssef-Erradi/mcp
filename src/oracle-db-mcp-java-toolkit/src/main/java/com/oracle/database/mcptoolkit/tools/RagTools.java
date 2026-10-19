@@ -103,7 +103,7 @@ public class RagTools {
           Map<String, Object> arguments = callReq.arguments();
           String question = String.valueOf(arguments.get("question"));
           if (question == null || question.isBlank()) {
-            return new McpSchema.CallToolResult("Question must be non-blank", true);
+            return textToolResult("Question must be non-blank", true);
           }
           int topK;
           try {
@@ -191,7 +191,7 @@ public class RagTools {
                       .build();
             }
           });
-          default -> new McpSchema.CallToolResult(
+          default -> textToolResult(
                   "Unknown action '" + action + "'. Must be one of: create, list", true);
         };
       })
@@ -237,7 +237,7 @@ public class RagTools {
                       .build();
             }
           });
-          default -> new McpSchema.CallToolResult(
+          default -> textToolResult(
                   "Unknown action '" + action + "'. Must be one of: list, drop", true);
         };
       })
@@ -281,7 +281,7 @@ public class RagTools {
 
             Object rawFilePath = args.get("filePath");
             if (rawFilePath == null) {
-              return new McpSchema.CallToolResult("Provide filePath (single file path)", true);
+              return textToolResult("Provide filePath (single file path)", true);
             }
             List<String> filePaths = List.of(rawFilePath.toString());
 
@@ -309,11 +309,11 @@ public class RagTools {
 
             Object rawFilePaths = args.get("filePaths");
             if (!(rawFilePaths instanceof List<?>)) {
-              return new McpSchema.CallToolResult("Provide filePaths (array of file paths)", true);
+              return textToolResult("Provide filePaths (array of file paths)", true);
             }
             List<String> filePaths = ((List<?>) rawFilePaths).stream().map(Object::toString).toList();
             if (filePaths.isEmpty()) {
-              return new McpSchema.CallToolResult("filePaths must not be empty", true);
+              return textToolResult("filePaths must not be empty", true);
             }
 
             String taskId = EmbeddingTaskManager.getInstance().submitLocalFiles(
@@ -431,7 +431,7 @@ public class RagTools {
                     .build();
           });
 
-          default -> new McpSchema.CallToolResult(
+          default -> textToolResult(
                   "Unknown action '" + action + "'. Must be one of: file, files, table, object, bucket", true);
         };
       })
@@ -461,7 +461,7 @@ public class RagTools {
             String taskId = String.valueOf(callReq.arguments().get("taskId"));
             EmbeddingTaskManager.EmbeddingTask task = EmbeddingTaskManager.getInstance().getTask(taskId);
             if (task == null) {
-              return new McpSchema.CallToolResult("Task not found: " + taskId, true);
+              return textToolResult("Task not found: " + taskId, true);
             }
             Map<String, Object> result = EmbeddingTaskManager.taskToMap(task);
             return McpSchema.CallToolResult.builder()
@@ -477,7 +477,7 @@ public class RagTools {
               limit = parseTaskListLimit(args.get("limit"));
               offset = parseTaskListOffset(args.get("offset"));
             } catch (IllegalArgumentException e) {
-              return new McpSchema.CallToolResult(e.getMessage(), true);
+              return textToolResult(e.getMessage(), true);
             }
 
             List<EmbeddingTaskManager.EmbeddingTask> allTasks = EmbeddingTaskManager.getInstance().getAllTasks()
@@ -512,7 +512,7 @@ public class RagTools {
                     .addTextContent(new JsonMapper().writeValueAsString(result))
                     .build();
           });
-          default -> new McpSchema.CallToolResult(
+          default -> textToolResult(
                   "Unknown action '" + action + "'. Must be one of: status, list, cancel", true);
         };
       })

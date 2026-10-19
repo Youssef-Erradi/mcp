@@ -26,6 +26,15 @@ public final class AuthContext {
     return CURRENT.get();
   }
 
+  /** Restores a request's authentication metadata, clearing the current value when absent. */
+  public static void restore(AuthenticationInfo authenticationInfo) {
+    if (authenticationInfo == null) {
+      CURRENT.remove();
+    } else {
+      CURRENT.set(authenticationInfo);
+    }
+  }
+
   public static boolean hasScope(String requiredScope) {
     AuthenticationInfo info = get();
     return info != null && info.scopes().contains(requiredScope);
