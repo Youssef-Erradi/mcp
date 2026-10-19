@@ -200,9 +200,6 @@ public class Utils {
   }
 
   private static <T> T withStatelessRequestContext(McpTransportContext context, Supplier<T> handler) {
-    AuthContext.AuthenticationInfo previousAuthentication = AuthContext.get();
-    EndUserSecurityContextHolder.RequestContext previousEndUserContext =
-        EndUserSecurityContextHolder.captureRequestContext();
     try {
       AuthContext.restore(context == null ? null
           : (AuthContext.AuthenticationInfo) context.get("oracle.auth"));
@@ -211,8 +208,8 @@ public class Utils {
               : (EndUserSecurityContextHolder.RequestContext) context.get("oracle.endUserSecurity"));
       return handler.get();
     } finally {
-      AuthContext.restore(previousAuthentication);
-      EndUserSecurityContextHolder.restoreRequestContext(previousEndUserContext);
+      AuthContext.clear();
+      EndUserSecurityContextHolder.clear();
     }
   }
 
