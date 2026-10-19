@@ -23,7 +23,7 @@ class LoadedConstantsTest {
     for (String property : new String[] {
         "transport", "network.transport", "https.port", "network.https.port", "db.user", "database.user",
         "db.password", "database.password", "http.allowedOriginalHosts", "network.http.allowedOriginalHosts",
-        "http.stateless", "network.http.stateless",
+        "network.http.stateless",
         "http.allowUnauthenticatedForDevelopment", "network.http.allowUnauthenticatedForDevelopment",
         "auth.enabled", "userAuth.enabled", "allowedHosts", "network.cors.allowedOrigin",
         "editTools.requireScope", "toolAuthorization.editTools.requireScope",
@@ -113,17 +113,6 @@ class LoadedConstantsTest {
     assertEquals(true, LoadedConstants.AUTH_ENABLED);
     assertEquals(true, LoadedConstants.DEEPSEC_ENABLED);
     assertEquals("https://identity.example.com/token", LoadedConstants.DEEPSEC_DATABASE_TOKEN_ENDPOINT);
-  }
-
-  @Test
-  void canonicalSystemPropertyOverridesLegacyStatelessAlias() {
-    RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of("network.http.stateless", "false"));
-    System.setProperty("http.stateless", "true");
-    System.setProperty("network.http.stateless", "false");
-
-    LoadedConstants.initialize(root);
-
-    assertEquals(false, LoadedConstants.HTTP_STATELESS);
   }
 
   @Test

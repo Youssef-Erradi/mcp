@@ -16,7 +16,6 @@ public final class RuntimePropertyNames {
       Map.entry("http.port", "network.http.port"),
       Map.entry("http.allowedOriginalHosts", "network.http.allowedOriginalHosts"),
       Map.entry("http.allowUnauthenticatedForDevelopment", "network.http.allowUnauthenticatedForDevelopment"),
-      Map.entry("http.stateless", "network.http.stateless"),
       Map.entry("https.port", "network.https.port"),
       Map.entry("certificatePath", "network.https.certificatePath"),
       Map.entry("certificatePassword", "network.https.certificatePassword"),
