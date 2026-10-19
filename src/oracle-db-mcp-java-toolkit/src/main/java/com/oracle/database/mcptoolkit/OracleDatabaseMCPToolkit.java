@@ -238,11 +238,6 @@ public class OracleDatabaseMCPToolkit {
     return config;
   }
 
-  /** Returns the running stateful server, if this process uses stdio or stateful HTTP. */
-  public static McpSyncServer getServer() {
-    return serverInstance;
-  }
-
   /** Removes a tool from whichever HTTP or stdio server is running. */
   public static void removeToolFromRunningServer(String name) {
     McpSyncServer syncServer = serverInstance;

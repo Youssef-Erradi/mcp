@@ -476,7 +476,7 @@ public final class DatabaseOperatorTools {
     .build();
   }
 
-  public static Utils.RequestToolSpecification getExplainAndExecutePlanTool(ServerConfig config) {
+  private static Utils.RequestToolSpecification getExplainAndExecutePlanTool(ServerConfig config) {
     return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("explain-plan")

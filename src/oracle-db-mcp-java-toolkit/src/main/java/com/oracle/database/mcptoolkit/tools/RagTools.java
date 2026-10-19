@@ -90,7 +90,7 @@ public class RagTools {
    * @param config the server configuration to use for determining the tool's behavior
    * @return a tool specification for the {@code similarity-search} tool
    */
-  public static Utils.RequestToolSpecification getSimilaritySearchTool(ServerConfig config) {
+  private static Utils.RequestToolSpecification getSimilaritySearchTool(ServerConfig config) {
     return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("similarity-search")
@@ -148,7 +148,7 @@ public class RagTools {
    * @param config server configuration
    * @return tool specification
    */
-  public static Utils.RequestToolSpecification getVectorStoreTool(ServerConfig config) {
+  private static Utils.RequestToolSpecification getVectorStoreTool(ServerConfig config) {
     return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("vector-store")
@@ -207,7 +207,7 @@ public class RagTools {
    * @param config server configuration
    * @return tool specification
    */
-  public static Utils.RequestToolSpecification getVectorModelTool(ServerConfig config) {
+  private static Utils.RequestToolSpecification getVectorModelTool(ServerConfig config) {
     return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("vector-model")
@@ -253,7 +253,7 @@ public class RagTools {
    * @param config server configuration
    * @return tool specification
    */
-  public static Utils.RequestToolSpecification getEmbedTool(ServerConfig config) {
+  private static Utils.RequestToolSpecification getEmbedTool(ServerConfig config) {
     return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("embed")
@@ -446,7 +446,7 @@ public class RagTools {
    *
    * @return tool specification (no server config needed)
    */
-  public static Utils.RequestToolSpecification getTaskTool() {
+  private static Utils.RequestToolSpecification getTaskTool() {
     return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("task")

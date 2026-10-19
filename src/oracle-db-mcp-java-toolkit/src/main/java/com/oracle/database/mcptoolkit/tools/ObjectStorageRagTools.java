@@ -71,7 +71,7 @@ public class ObjectStorageRagTools {
    * @param config server configuration
    * @return tool specification
    */
-  public static Utils.RequestToolSpecification getOciStorageTool(ServerConfig config) {
+  private static Utils.RequestToolSpecification getOciStorageTool(ServerConfig config) {
     return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("oci-storage")

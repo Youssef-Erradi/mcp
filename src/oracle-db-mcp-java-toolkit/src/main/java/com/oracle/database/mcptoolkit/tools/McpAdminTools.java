@@ -72,7 +72,7 @@ public class McpAdminTools {
    * @param config server configuration used to connect to the database
    * @return a tool specification for the "list-credentials" tool
    */
-  public static Utils.RequestToolSpecification getListCredentialsTool(ServerConfig config) {
+  private static Utils.RequestToolSpecification getListCredentialsTool(ServerConfig config) {
     return Utils.RequestToolSpecification.builder()
             .tool(McpSchema.Tool.builder()
                     .name("list-credentials")
@@ -138,7 +138,7 @@ public class McpAdminTools {
    * @param config the server configuration used to filter the tools
    * @return a tool specification for the "list-tools" tool
    */
-  public static Utils.RequestToolSpecification getListToolsTool(ServerConfig config) {
+  private static Utils.RequestToolSpecification getListToolsTool(ServerConfig config) {
     return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("list-tools")
@@ -260,7 +260,7 @@ public class McpAdminTools {
    *
    * @return a tool specification for the "edit-tools" tool
    */
-  public static Utils.RequestToolSpecification getEditToolsTool() {
+  private static Utils.RequestToolSpecification getEditToolsTool() {
     return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("edit-tools")
