@@ -9,7 +9,7 @@ package com.oracle.database.mcptoolkit.tools;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.oracle.database.mcptoolkit.ServerConfig;
-import io.modelcontextprotocol.server.McpServerFeatures;
+import com.oracle.database.mcptoolkit.Utils;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import java.net.URI;
@@ -56,8 +56,8 @@ public class ObjectStorageRagTools {
    * @param config server configuration
    * @return list containing the {@code oci-storage} tool
    */
-  public static List<McpServerFeatures.SyncToolSpecification> getTools(ServerConfig config) {
-    List<McpServerFeatures.SyncToolSpecification> tools = new ArrayList<>();
+  public static List<Utils.RequestToolSpecification> getTools(ServerConfig config) {
+    List<Utils.RequestToolSpecification> tools = new ArrayList<>();
     tools.add(getOciStorageTool(config));
     return tools;
   }
@@ -71,8 +71,8 @@ public class ObjectStorageRagTools {
    * @param config server configuration
    * @return tool specification
    */
-  public static McpServerFeatures.SyncToolSpecification getOciStorageTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getOciStorageTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("oci-storage")
          .title("OCI Storage")
@@ -80,7 +80,7 @@ public class ObjectStorageRagTools {
                  + "action=list-objects (lists bucket contents; provide bucketUrl, or region+namespace+bucketName).")
          .inputSchema(jsonSchema(ToolSchemas.OCI_STORAGE))
          .build())
-      .callHandler((exchange, callReq) -> {
+      .callHandler(callReq -> {
         String action = String.valueOf(callReq.arguments().getOrDefault("action", ""));
         return switch (action) {
 

@@ -9,7 +9,7 @@ package com.oracle.database.mcptoolkit.tools;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.oracle.database.mcptoolkit.ServerConfig;
-import io.modelcontextprotocol.server.McpServerFeatures;
+import com.oracle.database.mcptoolkit.Utils;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import java.nio.file.Paths;
@@ -57,8 +57,8 @@ public class RagTools {
    * @param config the server configuration to use for determining which tools to include
    * @return a list of tool specifications for RAG tools
    */
-  public static List<McpServerFeatures.SyncToolSpecification> getTools(ServerConfig config) {
-    List<McpServerFeatures.SyncToolSpecification> tools = new ArrayList<>();
+  public static List<Utils.RequestToolSpecification> getTools(ServerConfig config) {
+    List<Utils.RequestToolSpecification> tools = new ArrayList<>();
     tools.add(getSimilaritySearchTool(config));
     tools.add(getVectorStoreTool(config));
     tools.add(getVectorModelTool(config));
@@ -90,15 +90,15 @@ public class RagTools {
    * @param config the server configuration to use for determining the tool's behavior
    * @return a tool specification for the {@code similarity-search} tool
    */
-  public static McpServerFeatures.SyncToolSpecification getSimilaritySearchTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getSimilaritySearchTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("similarity-search")
          .title("Similarity Search")
          .description("Semantic vector similarity over a table with (text, embedding) columns")
          .inputSchema(jsonSchema(SIMILARITY_SEARCH))
          .build())
-      .callHandler((exchange, callReq) -> tryCall(() -> {
+      .callHandler(callReq -> tryCall(() -> {
         try (Connection c = openConnection(config, null)) {
           Map<String, Object> arguments = callReq.arguments();
           String question = String.valueOf(arguments.get("question"));
@@ -148,15 +148,15 @@ public class RagTools {
    * @param config server configuration
    * @return tool specification
    */
-  public static McpServerFeatures.SyncToolSpecification getVectorStoreTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getVectorStoreTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("vector-store")
          .title("Vector Store")
          .description("Manage vector stores. action=create (needs tableName), list (no args).")
          .inputSchema(jsonSchema(VECTOR_STORE))
          .build())
-      .callHandler((exchange, callReq) -> {
+      .callHandler(callReq -> {
         String action = String.valueOf(callReq.arguments().getOrDefault("action", ""));
         return switch (action) {
           case "create" -> tryCall(() -> {
@@ -207,15 +207,15 @@ public class RagTools {
    * @param config server configuration
    * @return tool specification
    */
-  public static McpServerFeatures.SyncToolSpecification getVectorModelTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getVectorModelTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("vector-model")
          .title("Vector Model")
          .description("Manage ONNX embedding models. action=list (no args), drop (needs modelName).")
          .inputSchema(jsonSchema(VECTOR_MODEL))
          .build())
-      .callHandler((exchange, callReq) -> {
+      .callHandler(callReq -> {
         String action = String.valueOf(callReq.arguments().getOrDefault("action", ""));
         return switch (action) {
           case "list" -> tryCall(() -> {
@@ -253,8 +253,8 @@ public class RagTools {
    * @param config server configuration
    * @return tool specification
    */
-  public static McpServerFeatures.SyncToolSpecification getEmbedTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getEmbedTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("embed")
          .title("Embed")
@@ -268,7 +268,7 @@ public class RagTools {
                  + "Show the taskId to the user and wait for them to ask for a status check.")
          .inputSchema(jsonSchema(EMBED))
          .build())
-      .callHandler((exchange, callReq) -> {
+      .callHandler(callReq -> {
         String action = String.valueOf(callReq.arguments().getOrDefault("action", ""));
         return switch (action) {
           case "file" -> tryCall(() -> {
@@ -446,15 +446,15 @@ public class RagTools {
    *
    * @return tool specification (no server config needed)
    */
-  public static McpServerFeatures.SyncToolSpecification getTaskTool() {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getTaskTool() {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("task")
          .title("Task")
          .description("Track background embedding tasks. action=status (needs taskId), list (supports limit/offset), cancel (needs taskId).")
          .inputSchema(jsonSchema(TASK))
          .build())
-      .callHandler((exchange, callReq) -> {
+      .callHandler(callReq -> {
         String action = String.valueOf(callReq.arguments().getOrDefault("action", ""));
         return switch (action) {
           case "status" -> tryCall(() -> {

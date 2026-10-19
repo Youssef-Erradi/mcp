@@ -13,8 +13,6 @@ import com.oracle.database.jdbc.logs.model.JDBCExecutedQuery;
 import com.oracle.database.jdbc.logs.model.LogError;
 import com.oracle.database.jdbc.logs.model.RDBMSError;
 import com.oracle.database.jdbc.logs.model.RDBMSPacketDump;
-import io.modelcontextprotocol.server.McpServerFeatures;
-import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
 
@@ -60,7 +58,7 @@ public final class LogAnalyzerTools {
   /**
    * Returns the set of MCP tools exposed by the Oracle JDBC Log Analyzer server.
    *
-   * <p>The returned {@link McpServerFeatures.SyncToolSpecification SyncToolSpecification}
+   * <p>The returned {@link Utils.RequestToolSpecification RequestToolSpecification}
    * instances describe the following logical analyzers:</p>
    *
    * <ul>
@@ -95,19 +93,19 @@ public final class LogAnalyzerTools {
    * @return an immutable list containing the JDBC and RDBMS/SQLNet analyzer tool specifications
    *         to be registered with an MCP server
    */
-  public static List<McpServerFeatures.SyncToolSpecification> getTools() {
+  public static List<Utils.RequestToolSpecification> getTools() {
     return List.of(getJDBCAnalyzerTool(), getRDBMSAnalyzerTool());
   }
 
-  private static SyncToolSpecification getJDBCAnalyzerTool() {
-    return SyncToolSpecification.builder()
+  private static Utils.RequestToolSpecification getJDBCAnalyzerTool() {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
         .name("jdbc-analyzer")
         .title("Oracle JDBC Log Analyzer")
         .description(JDBC_ANALYZER_DESCRIPTION)
         .inputSchema(Utils.jsonSchema(ToolSchemas.JDBC_ANALYZER_SCHEMA))
         .build())
-      .callHandler((exchange, callReq) -> Utils.tryCall( () -> {
+      .callHandler(callReq -> Utils.tryCall( () -> {
         final var args = callReq.arguments();
         final var action = String.valueOf(args.get("action"));
 
@@ -191,15 +189,15 @@ public final class LogAnalyzerTools {
 
 
 
-  private static SyncToolSpecification getRDBMSAnalyzerTool() {
-    return SyncToolSpecification.builder()
+  private static Utils.RequestToolSpecification getRDBMSAnalyzerTool() {
+    return Utils.RequestToolSpecification.builder()
       .tool(Tool.builder()
         .name("rdbms-analyzer")
         .title("RDBMS/SQLNet Trace Analyzer")
         .description(RDBMS_ANALYZER_DESCRIPTION)
         .inputSchema(Utils.jsonSchema(ToolSchemas.RDBMS_ANALYZER_SCHEMA))
         .build())
-      .callHandler((exchange, callReq) -> Utils.tryCall(() -> {
+      .callHandler(callReq -> Utils.tryCall(() -> {
         final var args = callReq.arguments();
         final var filePath = String.valueOf(args.get(FILE_PATH));
         final var action = String.valueOf(args.get("action"));

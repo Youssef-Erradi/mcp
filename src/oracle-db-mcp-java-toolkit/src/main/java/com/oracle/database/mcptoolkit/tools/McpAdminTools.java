@@ -15,7 +15,6 @@ import com.oracle.database.mcptoolkit.Utils;
 import com.oracle.database.mcptoolkit.config.ToolConfig;
 import com.oracle.database.mcptoolkit.oauth.AuthContext;
 import com.oracle.database.mcptoolkit.oauth.OAuth2Configuration;
-import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.yaml.snakeyaml.Yaml;
 
@@ -57,8 +56,8 @@ public class McpAdminTools {
    * @param config the server configuration used to filter the tools
    * @return a list of MCP admin tool specifications
    */
-  public static List<McpServerFeatures.SyncToolSpecification> getTools(ServerConfig config) {
-    List<McpServerFeatures.SyncToolSpecification> tools = new ArrayList<>();
+  public static List<Utils.RequestToolSpecification> getTools(ServerConfig config) {
+    List<Utils.RequestToolSpecification> tools = new ArrayList<>();
 
     tools.add(getListToolsTool(config));
     tools.add(getListCredentialsTool(config));
@@ -73,15 +72,15 @@ public class McpAdminTools {
    * @param config server configuration used to connect to the database
    * @return a tool specification for the "list-credentials" tool
    */
-  public static McpServerFeatures.SyncToolSpecification getListCredentialsTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getListCredentialsTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
             .tool(McpSchema.Tool.builder()
                     .name("list-credentials")
                     .title("List Credentials")
                     .description("List DBMS_CLOUD credentials available in the current schema.")
                     .inputSchema(Utils.jsonSchema(ToolSchemas.NO_INPUT_SCHEMA))
             .build())
-            .callHandler((exchange, callReq) -> {
+            .callHandler(callReq -> {
               try {
                 Optional<McpSchema.CallToolResult> authorizationError = authorizeProtectedTool(
                     "list-credentials",
@@ -139,15 +138,15 @@ public class McpAdminTools {
    * @param config the server configuration used to filter the tools
    * @return a tool specification for the "list-tools" tool
    */
-  public static McpServerFeatures.SyncToolSpecification getListToolsTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getListToolsTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("list-tools")
          .title("List Tools")
          .description("List all available tools with their descriptions.")
          .inputSchema(Utils.jsonSchema(ToolSchemas.NO_INPUT_SCHEMA))
          .build())
-      .callHandler((exchange, callReq) -> {
+      .callHandler(callReq -> {
         try {
           // Always use the latest runtime config to avoid requiring a rebuild
           ServerConfig current = OracleDatabaseMCPToolkit.getConfig() != null ? OracleDatabaseMCPToolkit.getConfig() : config;
@@ -155,7 +154,7 @@ public class McpAdminTools {
           List<Map<String, Object>> tools = new ArrayList<>();
 
           // 1) Built-in log analyzer tools (respect toolsFilter)
-          for (McpServerFeatures.SyncToolSpecification spec : LogAnalyzerTools.getTools()) {
+          for (Utils.RequestToolSpecification spec : LogAnalyzerTools.getTools()) {
             String name = spec.tool().name();
             if (isEnabled(current, name)) {
               tools.add(Map.of(
@@ -167,7 +166,7 @@ public class McpAdminTools {
           }
 
           // 2) RAG tools (respect toolsFilter)
-          for (McpServerFeatures.SyncToolSpecification spec : RagTools.getTools(current)) {
+          for (Utils.RequestToolSpecification spec : RagTools.getTools(current)) {
             String name = spec.tool().name();
             if (isEnabled(current, name)) {
               tools.add(Map.of(
@@ -179,7 +178,7 @@ public class McpAdminTools {
           }
 
           // 3) Database operator tools (respect toolsFilter)
-          for (McpServerFeatures.SyncToolSpecification spec : DatabaseOperatorTools.getTools(current)) {
+          for (Utils.RequestToolSpecification spec : DatabaseOperatorTools.getTools(current)) {
             String name = spec.tool().name();
             if (isEnabled(current, name)) {
               tools.add(Map.of(
@@ -205,7 +204,7 @@ public class McpAdminTools {
             }
           }
 
-          for (McpServerFeatures.SyncToolSpecification spec : McpAdminTools.getTools(current)) {
+          for (Utils.RequestToolSpecification spec : McpAdminTools.getTools(current)) {
             String name = spec.tool().name();
             if (isEnabled(current, name)) {
               tools.add(Map.of(
@@ -261,15 +260,15 @@ public class McpAdminTools {
    *
    * @return a tool specification for the "edit-tools" tool
    */
-  public static McpServerFeatures.SyncToolSpecification getEditToolsTool() {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getEditToolsTool() {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("edit-tools")
          .title("Edit/Add Tools")
          .description("Create or update YAML-defined tools in the config file. Changes are auto-reloaded.")
          .inputSchema(Utils.jsonSchema(ToolSchemas.EDIT_TOOL_SCHEMA))
          .build())
-      .callHandler((exchange, callReq) -> {
+      .callHandler(callReq -> {
         try {
           Optional<McpSchema.CallToolResult> authorizationError = authorizeProtectedTool(
               "edit-tools",

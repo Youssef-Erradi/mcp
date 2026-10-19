@@ -10,9 +10,9 @@ package com.oracle.database.mcptoolkit.tools;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.database.mcptoolkit.LoadedConstants;
 import com.oracle.database.mcptoolkit.ServerConfig;
+import com.oracle.database.mcptoolkit.Utils;
 import com.oracle.database.mcptoolkit.oauth.AuthenticatedPrincipal;
 import com.oracle.database.mcptoolkit.oauth.EndUserSecurityContextHolder;
-import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import java.sql.*;
@@ -80,8 +80,8 @@ public final class DatabaseOperatorTools {
    * @param config the server configuration to use for database connections
    * @return a list of tool specifications for database operations
    */
-  public static List<McpServerFeatures.SyncToolSpecification> getTools(ServerConfig config) {
-    List<McpServerFeatures.SyncToolSpecification> tools = new ArrayList<>();
+  public static List<Utils.RequestToolSpecification> getTools(ServerConfig config) {
+    List<Utils.RequestToolSpecification> tools = new ArrayList<>();
 
     tools.add(getReadQueryTool(config));
     tools.add(getWriteQueryTool(config));
@@ -101,15 +101,15 @@ public final class DatabaseOperatorTools {
     return tools;
   }
 
-  private static McpServerFeatures.SyncToolSpecification getReadQueryTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  private static Utils.RequestToolSpecification getReadQueryTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("read-query")
          .title("Read Query")
          .description("Run a SELECT and return rows as JSON. (Optionally accepts txId to run inside an open transaction.)")
          .inputSchema(jsonSchema(ToolSchemas.SQL_ONLY))
          .build())
-      .callHandler((exchange, callReq) -> tryCall(() -> {
+      .callHandler(callReq -> tryCall(() -> {
         try (DatabaseOperatorTools.ConnLease lease = acquireConnection(config, callReq.arguments().get("txId"))) {
           Connection c = lease.c;
           String sql = String.valueOf(callReq.arguments().get("sql"));
@@ -126,15 +126,15 @@ public final class DatabaseOperatorTools {
     .build();
   }
 
-  private static McpServerFeatures.SyncToolSpecification getWriteQueryTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  private static Utils.RequestToolSpecification getWriteQueryTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("write-query")
          .title("Write Query")
          .description("Execute DML (inside a transaction if txId is provided) or DML/DDL in autocommit mode.")
          .inputSchema(jsonSchema(ToolSchemas.SQL_ONLY))
          .build())
-      .callHandler((exchange, callReq) -> tryCall(() -> {
+      .callHandler(callReq -> tryCall(() -> {
         try (DatabaseOperatorTools.ConnLease lease = acquireConnection(config, callReq.arguments().get("txId"))) {
           Connection c = lease.c;
           String sql = String.valueOf(callReq.arguments().get("sql"));
@@ -152,15 +152,15 @@ public final class DatabaseOperatorTools {
     .build();
   }
 
-  private static McpServerFeatures.SyncToolSpecification getTableManagementTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  private static Utils.RequestToolSpecification getTableManagementTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("table")
          .title("Table Management")
          .description("Manage database tables. action=create (needs sql), drop (needs table), list (no args), describe (needs table).")
          .inputSchema(jsonSchema(ToolSchemas.TABLE_MANAGEMENT))
          .build())
-      .callHandler((exchange, callReq) -> {
+      .callHandler(callReq -> {
         String action = String.valueOf(callReq.arguments().getOrDefault("action", ""));
         return switch (action) {
           case "create" -> tryCall(() -> {
@@ -280,15 +280,15 @@ public final class DatabaseOperatorTools {
     .build();
   }
 
-  private static McpServerFeatures.SyncToolSpecification getTransactionTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  private static Utils.RequestToolSpecification getTransactionTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("transaction")
          .title("Transaction")
          .description("Manage JDBC transactions. Use action=start to begin (returns txId), resume to verify, commit to commit, rollback to rollback.")
          .inputSchema(jsonSchema(ToolSchemas.TRANSACTION))
          .build())
-      .callHandler((exchange, callReq) -> {
+      .callHandler(callReq -> {
         String action = String.valueOf(callReq.arguments().getOrDefault("action", ""));
         String txId = callReq.arguments().get("txId") != null ? String.valueOf(callReq.arguments().get("txId")) : null;
         return switch (action) {
@@ -336,15 +336,15 @@ public final class DatabaseOperatorTools {
     .build();
   }
 
-  private static McpServerFeatures.SyncToolSpecification getDbPingTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  private static Utils.RequestToolSpecification getDbPingTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("db-ping")
          .title("DB Ping")
          .description("Checks connectivity and round-trip latency; returns user, schema, DB name, and version.")
          .inputSchema(jsonSchema(ToolSchemas.NO_INPUT_SCHEMA))
          .build())
-      .callHandler((exchange, callReq) -> tryCall(() -> {
+      .callHandler(callReq -> tryCall(() -> {
         long connStart = System.nanoTime();
         try (Connection c = openConnection(config, null)) {
           long connectMs = (System.nanoTime() - connStart) / 1_000_000L;
@@ -393,15 +393,15 @@ public final class DatabaseOperatorTools {
     .build();
   }
 
-  private static McpServerFeatures.SyncToolSpecification getDbSessionContextTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  private static Utils.RequestToolSpecification getDbSessionContextTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("db-session-context")
          .title("DB Session Context")
          .description("Returns database session identity, activated DeepSec roles, and provider-specific IAM roles or groups for diagnostics.")
          .inputSchema(jsonSchema(ToolSchemas.NO_INPUT_SCHEMA))
          .build())
-      .callHandler((exchange, callReq) -> tryCall(() -> {
+      .callHandler(callReq -> tryCall(() -> {
         try (Connection c = openConnection(config, null);
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery("""
@@ -441,15 +441,15 @@ public final class DatabaseOperatorTools {
     return roles;
   }
 
-  private static McpServerFeatures.SyncToolSpecification getDbMetricsTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  private static Utils.RequestToolSpecification getDbMetricsTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("db-metrics-range")
          .title("DB Metrics")
          .description("Returns Oracle DB metrics from V$SYSSTAT (cumulative counters only).")
          .inputSchema(jsonSchema(ToolSchemas.NO_INPUT_SCHEMA))
          .build())
-      .callHandler((exchange, callReq) -> tryCall(() -> {
+      .callHandler(callReq -> tryCall(() -> {
         try (Connection c = openConnection(config, null);
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(SqlQueries.DB_METRICS_RANGE)) {
@@ -476,8 +476,8 @@ public final class DatabaseOperatorTools {
     .build();
   }
 
-  public static McpServerFeatures.SyncToolSpecification getExplainAndExecutePlanTool(ServerConfig config) {
-    return McpServerFeatures.SyncToolSpecification.builder()
+  public static Utils.RequestToolSpecification getExplainAndExecutePlanTool(ServerConfig config) {
+    return Utils.RequestToolSpecification.builder()
       .tool(McpSchema.Tool.builder()
          .name("explain-plan")
          .title("Explain Plan (static or dynamic)")
@@ -499,7 +499,7 @@ public final class DatabaseOperatorTools {
           """)
          .inputSchema(jsonSchema(ToolSchemas.EXPLAIN_PLAN))
          .build())
-      .callHandler((exchange, callReq) -> tryCall(() -> {
+      .callHandler(callReq -> tryCall(() -> {
         try (Connection c = openConnection(config, null)) {
           final String sql = String.valueOf(callReq.arguments().get("sql"));
           if (sql == null || sql.isBlank()) {
