@@ -109,6 +109,7 @@ network:
   transport: "http"
   http:
     port: "8080"
+    # stateless: "true"  # Optional; removes per-client MCP session state for serverless deployments.
     allowedOriginalHosts: "mcp.example.com"
   https:
     port: "45451"
@@ -590,6 +591,13 @@ The created jar can be found in `target/oracle-db-mcp-toolkit-1.0.0.jar`.
 * **stdio (default)** – the MCP client spawns the JVM process and talks over stdin/stdout
 * **Streamable HTTP** – the MCP server runs as an HTTP service, and clients connect via a URL
 
+HTTP can use the SDK's stateless transport by setting `network.http.stateless: "true"` in the runtime
+YAML or passing `-Dnetwork.http.stateless=true`. Stateless mode handles each MCP request without
+per-client transport session state, which can support serverless and horizontally scaled deployments.
+This setting does not externalize toolkit state: open SQL transactions and background embedding tasks
+remain process-local. The existing stateful Streamable HTTP transport remains the default for
+compatibility.
+
 #### 4.3.1. Stdio mode (default)
 
 This is the mode used by tools like Claude Desktop, where the client directly launches:
@@ -632,6 +640,22 @@ For local development only, an unauthenticated server can be started with `-Dhtt
 ```
 
 Use a reverse proxy or firewall appropriate for your deployment. `network.cors.allowedOrigin` is a separate CORS setting for OAuth discovery metadata; it does not control MCP request admission. The legacy `allowedHosts` name remains supported.
+
+##### Running locally over HTTP
+
+For local development, configure `network.http.port` and explicitly allow unauthenticated access:
+
+```shell
+java \
+  -Dtransport=http \
+  -Dnetwork.http.port=8080 \
+  -Dnetwork.http.stateless=true \
+  -Dhttp.allowUnauthenticatedForDevelopment=true \
+  -Dtools=jdbc-analyzer \
+  -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
+```
+
+The MCP endpoint is `http://localhost:8080/mcp`. Do not expose this configuration beyond local development.
 
 ##### Enabling HTTPS (SSL/TLS)
 
@@ -1028,6 +1052,12 @@ Ultimately, the token must be included in the http request header (e.g. `Authori
       <td>No</td>
       <td>Optional comma-separated browser-origin host allowlist. When configured, requests without an <code>Origin</code> header or with an untrusted origin are rejected before MCP dispatch. Disabled by default for non-browser client compatibility.</td>
       <td><code>-Dhttp.allowedOriginalHosts=mcp.example.com</code></td>
+    </tr>
+    <tr>
+      <td><code>network.http.stateless</code></td>
+      <td>No</td>
+      <td>Uses the SDK stateless HTTP transport without per-client MCP session state. Defaults to <code>false</code>; SQL transactions and embedding tasks remain process-local.</td>
+      <td><code>-Dnetwork.http.stateless=true</code></td>
     </tr>
     <tr>
       <td><code>http.allowUnauthenticatedForDevelopment</code></td>

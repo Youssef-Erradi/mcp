@@ -21,8 +21,9 @@ class LoadedConstantsTest {
   @AfterEach
   void resetConstants() {
     for (String property : new String[] {
-        "transport", "network.transport", "https.port", "network.https.port", "db.user", "database.user",
+        "transport", "network.transport", "http.port", "network.http.port", "https.port", "network.https.port", "db.user", "database.user",
         "db.password", "database.password", "http.allowedOriginalHosts", "network.http.allowedOriginalHosts",
+        "network.http.stateless",
         "http.allowUnauthenticatedForDevelopment", "network.http.allowUnauthenticatedForDevelopment",
         "auth.enabled", "userAuth.enabled", "allowedHosts", "network.cors.allowedOrigin",
         "editTools.requireScope", "toolAuthorization.editTools.requireScope",
@@ -67,6 +68,7 @@ class LoadedConstantsTest {
         network:
           transport: http
           http:
+            port: "8080"
             allowedOriginalHosts: mcp.example.com
           https:
             port: \"45451\"
@@ -86,6 +88,7 @@ class LoadedConstantsTest {
     LoadedConstants.initialize(root);
 
     assertEquals("http", LoadedConstants.TRANSPORT_KIND);
+    assertEquals("8080", LoadedConstants.HTTP_PORT);
     assertEquals("mcp.example.com", LoadedConstants.HTTP_ALLOWED_ORIGINAL_HOSTS);
     assertEquals("45451", LoadedConstants.HTTPS_PORT);
     assertEquals("yaml-user", LoadedConstants.DB_USER);
@@ -99,6 +102,7 @@ class LoadedConstantsTest {
   void loadsHttpSecurityAndDeepSecSettingsFromYamlProperties() {
     RuntimeConfigRoot root = RuntimeConfigRoot.fromProperties(Map.of(
         "network.http.allowedOriginalHosts", "mcp.example.com",
+        "network.http.stateless", "true",
         "network.http.allowUnauthenticatedForDevelopment", "true", "userAuth.enabled", "true",
         "deepDataSecurity.enabled", "true",
         "deepDataSecurity.databaseToken.tokenEndpoint", "https://identity.example.com/token"));
@@ -106,6 +110,7 @@ class LoadedConstantsTest {
     LoadedConstants.initialize(root);
 
     assertEquals("mcp.example.com", LoadedConstants.HTTP_ALLOWED_ORIGINAL_HOSTS);
+    assertEquals(true, LoadedConstants.HTTP_STATELESS);
     assertEquals(true, LoadedConstants.HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT);
     assertEquals(true, LoadedConstants.AUTH_ENABLED);
     assertEquals(true, LoadedConstants.DEEPSEC_ENABLED);

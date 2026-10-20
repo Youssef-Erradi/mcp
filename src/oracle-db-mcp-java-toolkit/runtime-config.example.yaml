@@ -5,6 +5,8 @@ network:
   transport: "http"
   http:
     port: "8080"
+    # Enable for serverless or horizontally scaled deployments without per-client MCP sessions.
+    # stateless: "true"
     # Set this explicitly for production HTTP deployments.
     allowedOriginalHosts: "mcp.example.com"
   cors:

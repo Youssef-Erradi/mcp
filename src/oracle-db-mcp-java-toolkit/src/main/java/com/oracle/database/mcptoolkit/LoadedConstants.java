@@ -23,11 +23,13 @@ public final class LoadedConstants {
 
   /** Network config. */
   public static String TRANSPORT_KIND;
+  public static String HTTP_PORT;
   public static String HTTPS_PORT;
   public static String KEYSTORE_PATH;
   public static String KEYSTORE_PASSWORD;
   public static String HTTP_ALLOWED_ORIGINAL_HOSTS;
   public static boolean HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT;
+  public static boolean HTTP_STATELESS;
 
   /** Tools and database config. */
   public static String TOOLS;
@@ -86,12 +88,14 @@ public final class LoadedConstants {
     Map<String, String> yamlProperties = configRoot == null ? null : configRoot.properties();
     Map<String, String> systemProperties = canonicalSystemProperties();
     TRANSPORT_KIND = value("network.transport", yamlProperties, systemProperties, "stdio").trim().toLowerCase();
+    HTTP_PORT = value("network.http.port", yamlProperties, systemProperties, null);
     HTTPS_PORT = value("network.https.port", yamlProperties, systemProperties, null);
     KEYSTORE_PATH = value("network.https.certificatePath", yamlProperties, systemProperties, null);
     KEYSTORE_PASSWORD = value("network.https.certificatePassword", yamlProperties, systemProperties, null);
     HTTP_ALLOWED_ORIGINAL_HOSTS = value("network.http.allowedOriginalHosts", yamlProperties, systemProperties, null);
     HTTP_ALLOW_UNAUTHENTICATED_FOR_DEVELOPMENT = bool(
         "network.http.allowUnauthenticatedForDevelopment", yamlProperties, systemProperties, false);
+    HTTP_STATELESS = bool("network.http.stateless", yamlProperties, systemProperties, false);
     TOOLS = value("toolSelection.enabled", yamlProperties, systemProperties, null);
     INGEST_ROOT_DIR = value("dataIngestion.rootDirectory", yamlProperties, systemProperties, null);
     INGEST_MAX_FILE_SIZE_MB = value("dataIngestion.maxFileSizeMb", yamlProperties, systemProperties, null);
