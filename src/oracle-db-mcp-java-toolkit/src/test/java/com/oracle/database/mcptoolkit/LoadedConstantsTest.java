@@ -21,7 +21,7 @@ class LoadedConstantsTest {
   @AfterEach
   void resetConstants() {
     for (String property : new String[] {
-        "transport", "network.transport", "https.port", "network.https.port", "db.user", "database.user",
+        "transport", "network.transport", "http.port", "network.http.port", "https.port", "network.https.port", "db.user", "database.user",
         "db.password", "database.password", "http.allowedOriginalHosts", "network.http.allowedOriginalHosts",
         "network.http.stateless",
         "http.allowUnauthenticatedForDevelopment", "network.http.allowUnauthenticatedForDevelopment",
@@ -68,6 +68,7 @@ class LoadedConstantsTest {
         network:
           transport: http
           http:
+            port: "8080"
             allowedOriginalHosts: mcp.example.com
           https:
             port: \"45451\"
@@ -87,6 +88,7 @@ class LoadedConstantsTest {
     LoadedConstants.initialize(root);
 
     assertEquals("http", LoadedConstants.TRANSPORT_KIND);
+    assertEquals("8080", LoadedConstants.HTTP_PORT);
     assertEquals("mcp.example.com", LoadedConstants.HTTP_ALLOWED_ORIGINAL_HOSTS);
     assertEquals("45451", LoadedConstants.HTTPS_PORT);
     assertEquals("yaml-user", LoadedConstants.DB_USER);

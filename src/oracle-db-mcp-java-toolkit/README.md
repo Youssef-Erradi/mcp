@@ -641,6 +641,22 @@ For local development only, an unauthenticated server can be started with `-Dhtt
 
 Use a reverse proxy or firewall appropriate for your deployment. `network.cors.allowedOrigin` is a separate CORS setting for OAuth discovery metadata; it does not control MCP request admission. The legacy `allowedHosts` name remains supported.
 
+##### Running locally over HTTP
+
+For local development, configure `network.http.port` and explicitly allow unauthenticated access:
+
+```shell
+java \
+  -Dtransport=http \
+  -Dnetwork.http.port=8080 \
+  -Dnetwork.http.stateless=true \
+  -Dhttp.allowUnauthenticatedForDevelopment=true \
+  -Dtools=jdbc-analyzer \
+  -jar <path-to-jar>/oracle-db-mcp-toolkit-1.0.0.jar
+```
+
+The MCP endpoint is `http://localhost:8080/mcp`. Do not expose this configuration beyond local development.
+
 ##### Enabling HTTPS (SSL/TLS)
 
 **WARNING**: Enable https at your own risk. When enabling https pay extra attention to the MCP tools that you enable as they may create a new risk for your database server.

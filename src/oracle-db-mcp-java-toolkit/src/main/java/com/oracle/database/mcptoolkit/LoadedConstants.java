@@ -23,6 +23,7 @@ public final class LoadedConstants {
 
   /** Network config. */
   public static String TRANSPORT_KIND;
+  public static String HTTP_PORT;
   public static String HTTPS_PORT;
   public static String KEYSTORE_PATH;
   public static String KEYSTORE_PASSWORD;
@@ -87,6 +88,7 @@ public final class LoadedConstants {
     Map<String, String> yamlProperties = configRoot == null ? null : configRoot.properties();
     Map<String, String> systemProperties = canonicalSystemProperties();
     TRANSPORT_KIND = value("network.transport", yamlProperties, systemProperties, "stdio").trim().toLowerCase();
+    HTTP_PORT = value("network.http.port", yamlProperties, systemProperties, null);
     HTTPS_PORT = value("network.https.port", yamlProperties, systemProperties, null);
     KEYSTORE_PATH = value("network.https.certificatePath", yamlProperties, systemProperties, null);
     KEYSTORE_PASSWORD = value("network.https.certificatePassword", yamlProperties, systemProperties, null);

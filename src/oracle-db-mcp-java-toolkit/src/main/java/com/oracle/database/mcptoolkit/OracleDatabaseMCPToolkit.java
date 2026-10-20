@@ -167,17 +167,48 @@ public class OracleDatabaseMCPToolkit {
       filterMap.addURLPattern("/mcp/*");
       ctx.addFilterMap(filterMap);
 
-      if (LoadedConstants.HTTPS_PORT == null || LoadedConstants.KEYSTORE_PATH == null || LoadedConstants.KEYSTORE_PASSWORD == null)
-        throw new RuntimeException("SSL setup failed: HTTPS port, Keystore path or password not specified");
+      boolean httpEnabled = isConfigured(LoadedConstants.HTTP_PORT);
+      boolean httpsEnabled = isConfigured(LoadedConstants.HTTPS_PORT)
+          && isConfigured(LoadedConstants.KEYSTORE_PATH)
+          && isConfigured(LoadedConstants.KEYSTORE_PASSWORD);
+      boolean httpsPartiallyConfigured = isConfigured(LoadedConstants.HTTPS_PORT)
+          || isConfigured(LoadedConstants.KEYSTORE_PATH)
+          || isConfigured(LoadedConstants.KEYSTORE_PASSWORD);
+      if (!httpEnabled && !httpsEnabled) {
+        if (httpsPartiallyConfigured) {
+          throw new IllegalStateException(
+              "SSL setup failed: HTTPS port, keystore path, and password must all be specified");
+        }
+        throw new IllegalStateException(
+            "HTTP setup failed: specify network.http.port or HTTPS port, keystore path, and password");
+      }
 
-      enableHttps(tomcat);
+      if (httpEnabled) {
+        enableHttp(tomcat);
+      }
+      if (httpsEnabled) {
+        enableHttps(tomcat);
+      }
 
       tomcat.start();
 
-      LOG.info("[oracle-db-mcp-toolkit] HTTP transport started on " + LoadedConstants.HTTPS_PORT + " (endpoint: /mcp)");
+      if (httpEnabled) {
+        LOG.info("[oracle-db-mcp-toolkit] HTTP transport started on " + LoadedConstants.HTTP_PORT
+            + " (endpoint: /mcp)");
+      }
+      if (httpsEnabled) {
+        LOG.info("[oracle-db-mcp-toolkit] HTTPS transport started on " + LoadedConstants.HTTPS_PORT
+            + " (endpoint: /mcp)");
+      }
     } catch (Exception e) {
       throw new RuntimeException("Failed to start HTTP MCP server", e);
     }
+  }
+
+  /** Configures and enables plain HTTP on the provided Tomcat server. */
+  private static void enableHttp(Tomcat tomcat) {
+    tomcat.setPort(Integer.parseInt(LoadedConstants.HTTP_PORT));
+    tomcat.getConnector();
   }
 
   /**
@@ -232,6 +263,10 @@ public class OracleDatabaseMCPToolkit {
       LOG.warning("[oracle-db-mcp-toolkit] Starting unauthenticated HTTP transport for development only");
     }
 
+  }
+
+  private static boolean isConfigured(String value) {
+    return value != null && !value.isBlank();
   }
 
   public static ServerConfig getConfig() {
